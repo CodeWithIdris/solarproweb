@@ -53,6 +53,8 @@ export interface PanelWattageComparison {
   panelWattage: number;
   requiredPanels: number;
   configuredCapacityKWP: number;
+  differenceFromRequirementKWP: number;
+  meetsRequirement: boolean;
 }
 
 export interface ConfigurationResult {
@@ -125,12 +127,11 @@ function batteryVoltageCompatible(battery: BatteryModel | undefined, inverter: I
 }
 
 function selectInverter(
-  result: CalculationResult,
+  minimumRequiredKVA: number,
+  preferredRequiredKVA: number,
   inverters: InverterModel[],
   battery: BatteryConfiguration,
 ): InverterConfiguration {
-  const minimumRequiredKVA = result.inverterAnalysis.minimumInverterKVA;
-  const preferredRequiredKVA = result.inverterAnalysis.preferredInverterKVA;
   const candidates = inverters
     .filter(
       (inverter) =>
@@ -165,33 +166,44 @@ export function generateSystemConfigurations(
     .filter(
       (wattage, index, values) => validWattage(wattage) > 0 && values.indexOf(wattage) === index,
     )
-    .map((wattage) => ({
-      panelWattage: wattage,
-      requiredPanels: Math.ceil(
+    .map((wattage) => {
+      const requiredPanels = Math.ceil(
         (result.recommendations.recommended.solarArrayKWP * 1000) / wattage,
-      ),
-      configuredCapacityKWP:
-        (Math.ceil((result.recommendations.recommended.solarArrayKWP * 1000) / wattage) * wattage) /
-        1000,
-    }));
+      );
+      const configuredCapacityKWP = (requiredPanels * wattage) / 1000;
+      const differenceFromRequirementKWP =
+        configuredCapacityKWP - result.recommendations.recommended.solarArrayKWP;
+      return {
+        panelWattage: wattage,
+        requiredPanels,
+        configuredCapacityKWP,
+        differenceFromRequirementKWP,
+        meetsRequirement: differenceFromRequirementKWP >= -0.00001,
+      };
+    });
   const tiers: Array<[Recommendation["name"], Recommendation]> = [
     ["Essential", result.recommendations.essential],
     ["Recommended", result.recommendations.recommended],
     ["Extended", result.recommendations.extended],
   ];
   const configurations = tiers.map(([tier, recommendation]) => {
+    const selectedWattage = validWattage(panelWattage);
     const panelModel =
-      catalogue.panels.find((panel) => panel.ratedPowerWatts === validWattage(panelWattage)) ??
-      catalogue.panels.find(
-        (panel) => panel.ratedPowerWatts === result.panelAnalysis.selectedPanelWattage,
-      ) ??
-      catalogue.panels[0];
+      catalogue.panels.find((panel) => panel.ratedPowerWatts === selectedWattage) ??
+      (selectedWattage > 0
+        ? {
+            id: `custom-reference-panel-${selectedWattage}`,
+            manufacturer: "Reference",
+            model: `Custom reference ${selectedWattage}W panel`,
+            ratedPowerWatts: selectedWattage,
+            technology: "unknown" as const,
+            referenceNotes:
+              "Custom wattage supplied for planning; verify the panel specification before design.",
+            status: "reference" as const,
+          }
+        : undefined);
     const solarArray = panelModel
-      ? calculatePanelConfiguration(
-          recommendation.solarArrayKWP,
-          panelModel.ratedPowerWatts,
-          panelModel,
-        )
+      ? calculatePanelConfiguration(recommendation.solarArrayKWP, selectedWattage, panelModel)
       : {
           model: undefined as unknown as SolarPanelModel,
           requiredSolarCapacityKWP: recommendation.solarArrayKWP,
@@ -200,7 +212,12 @@ export function generateSystemConfigurations(
           configuredSolarCapacityKWP: 0,
         };
     const batteryBank = selectBattery(recommendation.batteryCapacityKWh, catalogue.batteries);
-    const inverter = selectInverter(result, catalogue.inverters, batteryBank);
+    const inverter = selectInverter(
+      recommendation.inverterCapacityKVA * 0.8,
+      recommendation.inverterCapacityKVA,
+      catalogue.inverters,
+      batteryBank,
+    );
     const configurationWarnings: string[] = [];
     if (
       solarArray.panelQuantity > 0 &&
@@ -240,8 +257,8 @@ export function generateSystemConfigurations(
       calculationComparison: {
         requiredBatteryCapacityKWh: recommendation.batteryCapacityKWh,
         configuredBatteryCapacityKWh: batteryBank.configuredNominalCapacityKWh,
-        minimumInverterCapacityKVA: result.inverterAnalysis.minimumInverterKVA,
-        preferredInverterCapacityKVA: result.inverterAnalysis.preferredInverterKVA,
+        minimumInverterCapacityKVA: inverter.minimumRequiredKVA,
+        preferredInverterCapacityKVA: inverter.preferredRequiredKVA,
         selectedInverterCapacityKVA: inverter.selectedCapacityKVA,
       },
     };

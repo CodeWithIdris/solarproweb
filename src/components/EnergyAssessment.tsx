@@ -29,6 +29,9 @@ type Assessment = {
   backupHours: number;
   panelWatts: number;
   appliances: Appliance[];
+  selectedRecommendationTier?: "Essential" | "Recommended" | "Extended";
+  selectedConfigurationId?: string;
+  configurationNotes?: string;
 };
 
 const inputClass =
@@ -711,13 +714,20 @@ function RecommendationStep({
   assessment,
   result,
   configurations,
+  onSelectConfiguration,
+  onUpdateNotes,
   onSave,
 }: {
   assessment: Assessment;
   result: CalculationResult;
   configurations: ConfigurationResult;
+  onSelectConfiguration: (configurationId: string) => void;
+  onUpdateNotes: (notes: string) => void;
   onSave: () => void;
 }) {
+  const selectedConfiguration = configurations.configurations.find(
+    (configuration) => configuration.id === assessment.selectedConfigurationId,
+  );
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -766,6 +776,7 @@ function RecommendationStep({
               <th className="label-technical px-4 py-3">Battery</th>
               <th className="label-technical px-4 py-3">Inverter</th>
               <th className="label-technical px-4 py-3">Panels ({assessment.panelWatts} W)</th>
+              <th className="label-technical px-4 py-3">Configured solar</th>
               <th className="label-technical px-4 py-3">Basis</th>
             </tr>
           </thead>
@@ -785,6 +796,9 @@ function RecommendationStep({
                   {tier.inverterCapacityKVA.toFixed(1)} kVA
                 </td>
                 <td className="px-4 py-4 font-mono text-xs">{tier.numberOfPanels}</td>
+                <td className="px-4 py-4 font-mono text-xs">
+                  {((tier.numberOfPanels * assessment.panelWatts) / 1000).toFixed(2)} kWp
+                </td>
                 <td className="px-4 py-4 text-muted-foreground">{tier.basis}</td>
               </tr>
             ))}
@@ -808,6 +822,7 @@ function RecommendationStep({
                 <th className="label-technical px-4 py-3">Panel wattage</th>
                 <th className="label-technical px-4 py-3">Panels required</th>
                 <th className="label-technical px-4 py-3">Configured capacity</th>
+                <th className="label-technical px-4 py-3">Difference</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -817,6 +832,11 @@ function RecommendationStep({
                   <td className="px-4 py-3 font-mono text-xs">{item.requiredPanels}</td>
                   <td className="px-4 py-3 font-mono text-xs">
                     {item.configuredCapacityKWP.toFixed(2)} kWp
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {item.meetsRequirement && item.differenceFromRequirementKWP <= 0.00001
+                      ? "Meets requirement"
+                      : `+${item.differenceFromRequirementKWP.toFixed(2)} kWp`}
                   </td>
                 </tr>
               ))}
@@ -840,7 +860,16 @@ function RecommendationStep({
             <tbody className="divide-y divide-border">
               {configurations.configurations.map((configuration) => (
                 <tr key={configuration.id}>
-                  <td className="px-4 py-3 font-semibold">{configuration.recommendationTier}</td>
+                  <td className="px-4 py-3 font-semibold">
+                    <button
+                      type="button"
+                      className="text-left underline underline-offset-4 hover:text-muted-foreground"
+                      onClick={() => onSelectConfiguration(configuration.id)}
+                    >
+                      {configuration.recommendationTier}
+                      {assessment.selectedConfigurationId === configuration.id && " · Selected"}
+                    </button>
+                  </td>
                   <td className="px-4 py-3">
                     <span className="block font-medium">
                       {configuration.solarArray.model?.model ?? "No valid panel"}
@@ -880,6 +909,96 @@ function RecommendationStep({
           ratings, compatibility, and installation requirements with the manufacturer and a
           qualified professional.
         </p>
+        {selectedConfiguration ? (
+          <div className="mt-6 border-t border-border pt-5">
+            <p className="label-technical">Selected configuration — required vs provided</p>
+            <div className="mt-4 overflow-x-auto border border-border bg-card">
+              <table className="w-full min-w-[680px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="label-technical px-4 py-3">Requirement</th>
+                    <th className="label-technical px-4 py-3">What you need</th>
+                    <th className="label-technical px-4 py-3">What this provides</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  <tr>
+                    <td className="px-4 py-3 font-medium">Solar array</td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {selectedConfiguration.solarArray.requiredSolarCapacityKWP.toFixed(2)} kWp
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {selectedConfiguration.solarArray.panelQuantity} ×{" "}
+                      {selectedConfiguration.solarArray.selectedPanelWattage} W ={" "}
+                      {selectedConfiguration.solarArray.configuredSolarCapacityKWP.toFixed(2)} kWp
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium">Battery</td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {selectedConfiguration.batteryBank.requiredInstalledCapacityKWh.toFixed(2)}{" "}
+                      kWh nominal
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {selectedConfiguration.batteryBank.configuredNominalCapacityKWh.toFixed(2)}{" "}
+                      kWh nominal
+                      {selectedConfiguration.batteryBank.configuredUsableCapacityKWh
+                        ? ` / ${selectedConfiguration.batteryBank.configuredUsableCapacityKWh.toFixed(2)} kWh usable`
+                        : ""}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-medium">Inverter</td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {selectedConfiguration.inverter.minimumRequiredKVA.toFixed(2)} kVA minimum /{" "}
+                      {selectedConfiguration.inverter.preferredRequiredKVA.toFixed(2)} kVA preferred
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {selectedConfiguration.inverter.selectedCapacityKVA.toFixed(2)} kVA
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="label-technical">Why this was selected</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  This {selectedConfiguration.recommendationTier.toLowerCase()} configuration uses
+                  the selected panel wattage and the smallest reference equipment combination that
+                  meets the tier requirements where compatible data is available.
+                </p>
+              </div>
+              <div>
+                <p className="label-technical">Warnings and compatibility</p>
+                <ul className="mt-2 grid gap-1 text-sm text-muted-foreground">
+                  {selectedConfiguration.warnings.length > 0 ? (
+                    selectedConfiguration.warnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))
+                  ) : (
+                    <li>No compatibility issue was detected using available reference data.</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+            <label className="mt-4 grid gap-1.5">
+              <span className="text-sm font-medium">Configuration notes</span>
+              <textarea
+                className={inputClass}
+                rows={2}
+                value={assessment.configurationNotes ?? ""}
+                onChange={(event) => onUpdateNotes(event.target.value)}
+                placeholder="Optional planning note"
+              />
+            </label>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No configuration selected. Select a tier to inspect what the reference equipment would
+            provide.
+          </p>
+        )}
       </div>
       <div className="mt-8 grid gap-6 border-t border-border pt-6 lg:grid-cols-2">
         <div>
@@ -954,6 +1073,15 @@ export function EnergyAssessment({ onExit }: { onExit: () => void }) {
   }, []);
   const update = (patch: Partial<Assessment>) =>
     setAssessment((current) => ({ ...current, ...patch }));
+  const selectConfiguration = (configurationId: string) => {
+    const configuration = configurations.configurations.find((item) => item.id === configurationId);
+    if (configuration) {
+      update({
+        selectedConfigurationId: configurationId,
+        selectedRecommendationTier: configuration.recommendationTier,
+      });
+    }
+  };
   const save = () => {
     const next = [...saved.filter((item) => item.name !== assessment.name), assessment];
     setSaved(next);
@@ -996,6 +1124,8 @@ export function EnergyAssessment({ onExit }: { onExit: () => void }) {
             assessment={assessment}
             result={result}
             configurations={configurations}
+            onSelectConfiguration={selectConfiguration}
+            onUpdateNotes={(configurationNotes) => update({ configurationNotes })}
             onSave={save}
           />
         )}
