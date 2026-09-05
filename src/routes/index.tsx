@@ -215,7 +215,9 @@ function Hero() {
                     <p className="font-mono text-xs text-muted-foreground">
                       PR {site.prPercent.toFixed(1)}%
                       {site.openAlerts > 0 && (
-                        <span className="text-destructive"> · {site.openAlerts} alerts</span>
+                        <span className="text-destructive">
+                          {" "}· {site.openAlerts} {site.openAlerts === 1 ? "alert" : "alerts"}
+                        </span>
                       )}
                     </p>
                   </div>
