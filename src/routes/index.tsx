@@ -1,21 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { DemoRequestForm } from "@/components/DemoRequestForm";
+import { EnergyAssessment } from "@/components/EnergyAssessment";
 
 export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
     meta: [
-      { title: "Solar Pro — Monitoring and asset management for utility-scale solar" },
+      { title: "Solar Pro — Plan, size, and manage solar systems" },
       {
         name: "description",
         content:
-          "Solar Pro gives operations teams and portfolio managers one system of record for site telemetry, alerts, work orders, and production reporting across utility-scale solar fleets.",
+          "Understand electricity needs, estimate solar configurations, and manage energy assets from planning through operation.",
       },
-      { property: "og:title", content: "Solar Pro — Solar fleet operations software" },
+      { property: "og:title", content: "Solar Pro — Plan, size, and manage solar systems" },
       {
         property: "og:description",
         content:
-          "One system of record for telemetry, alerts, work orders, and production reporting across utility-scale solar portfolios.",
+          "Understand electricity needs, estimate solar configurations, and manage energy assets from planning through operation.",
       },
       { property: "og:url", content: "/" },
       { property: "og:type", content: "website" },
@@ -31,8 +33,7 @@ export const Route = createFileRoute("/")({
           name: "Solar Pro",
           applicationCategory: "BusinessApplication",
           operatingSystem: "Web",
-          description:
-            "Monitoring and asset management software for utility-scale solar portfolios.",
+          description: "Solar planning, system sizing, monitoring, and asset management software.",
         }),
       },
     ],
@@ -58,11 +59,56 @@ interface SampleSite {
 }
 
 const SAMPLE_SITES: SampleSite[] = [
-  { id: "NG-KD-01", name: "Kaduna North", region: "Kaduna, NG", capacityMWp: 12.4, status: "operational", todayKwh: 68_410, prPercent: 81.2, openAlerts: 0 },
-  { id: "NG-KD-02", name: "Kaduna South", region: "Kaduna, NG", capacityMWp: 9.8, status: "operational", todayKwh: 51_930, prPercent: 79.6, openAlerts: 1 },
-  { id: "NG-NS-01", name: "Nasarawa East", region: "Nasarawa, NG", capacityMWp: 20.0, status: "degraded", todayKwh: 96_120, prPercent: 71.4, openAlerts: 3 },
-  { id: "NG-KN-01", name: "Kano River", region: "Kano, NG", capacityMWp: 7.5, status: "operational", todayKwh: 42_060, prPercent: 82.8, openAlerts: 0 },
-  { id: "GH-AS-01", name: "Ashanti Ridge", region: "Ashanti, GH", capacityMWp: 15.2, status: "fault", todayKwh: 18_440, prPercent: 22.1, openAlerts: 6 },
+  {
+    id: "NG-KD-01",
+    name: "Kaduna North",
+    region: "Kaduna, NG",
+    capacityMWp: 12.4,
+    status: "operational",
+    todayKwh: 68_410,
+    prPercent: 81.2,
+    openAlerts: 0,
+  },
+  {
+    id: "NG-KD-02",
+    name: "Kaduna South",
+    region: "Kaduna, NG",
+    capacityMWp: 9.8,
+    status: "operational",
+    todayKwh: 51_930,
+    prPercent: 79.6,
+    openAlerts: 1,
+  },
+  {
+    id: "NG-NS-01",
+    name: "Nasarawa East",
+    region: "Nasarawa, NG",
+    capacityMWp: 20.0,
+    status: "degraded",
+    todayKwh: 96_120,
+    prPercent: 71.4,
+    openAlerts: 3,
+  },
+  {
+    id: "NG-KN-01",
+    name: "Kano River",
+    region: "Kano, NG",
+    capacityMWp: 7.5,
+    status: "operational",
+    todayKwh: 42_060,
+    prPercent: 82.8,
+    openAlerts: 0,
+  },
+  {
+    id: "GH-AS-01",
+    name: "Ashanti Ridge",
+    region: "Ashanti, GH",
+    capacityMWp: 15.2,
+    status: "fault",
+    todayKwh: 18_440,
+    prPercent: 22.1,
+    openAlerts: 6,
+  },
 ];
 
 const STATUS_META: Record<SiteStatus, { label: string; className: string }> = {
@@ -100,19 +146,43 @@ const CAPABILITIES: { term: string; detail: string }[] = [
 ];
 
 const DATA_MODEL: { entity: string; keyFields: string; description: string }[] = [
-  { entity: "Site", keyFields: "name, region, capacity_mwp, grid_operator, commissioned_on", description: "A physical plant and the unit of portfolio aggregation." },
-  { entity: "Device", keyFields: "site_id, type (inverter | meter | weather_station), model, serial", description: "A monitored asset installed at a site." },
-  { entity: "Reading", keyFields: "device_id, recorded_at, metric, value, quality_flag", description: "A single telemetry point, retained at native resolution." },
-  { entity: "Alert", keyFields: "site_id, device_id, rule, severity, first_seen, status", description: "A rule violation requiring triage; the source of work orders." },
-  { entity: "Work order", keyFields: "alert_id, assigned_to, due_on, downtime_hours, resolution", description: "Field work booked against an alert, with downtime attribution." },
-  { entity: "Report", keyFields: "site_id, period, energy_kwh, pr_percent, availability_percent", description: "Computed daily and monthly aggregates used in reporting." },
+  {
+    entity: "Site",
+    keyFields: "name, region, capacity_mwp, grid_operator, commissioned_on",
+    description: "A physical plant and the unit of portfolio aggregation.",
+  },
+  {
+    entity: "Device",
+    keyFields: "site_id, type (inverter | meter | weather_station), model, serial",
+    description: "A monitored asset installed at a site.",
+  },
+  {
+    entity: "Reading",
+    keyFields: "device_id, recorded_at, metric, value, quality_flag",
+    description: "A single telemetry point, retained at native resolution.",
+  },
+  {
+    entity: "Alert",
+    keyFields: "site_id, device_id, rule, severity, first_seen, status",
+    description: "A rule violation requiring triage; the source of work orders.",
+  },
+  {
+    entity: "Work order",
+    keyFields: "alert_id, assigned_to, due_on, downtime_hours, resolution",
+    description: "Field work booked against an alert, with downtime attribution.",
+  },
+  {
+    entity: "Report",
+    keyFields: "site_id, period, energy_kwh, pr_percent, availability_percent",
+    description: "Computed daily and monthly aggregates used in reporting.",
+  },
 ];
 
 function formatNumber(n: number) {
   return n.toLocaleString("en-US");
 }
 
-function Header() {
+function Header({ onPlan }: { onPlan: () => void }) {
   return (
     <header className="border-b border-border bg-background">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
@@ -125,9 +195,18 @@ function Header() {
           </span>
         </a>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-          <a href="#platform" className="hover:text-foreground">Platform</a>
-          <a href="#data-model" className="hover:text-foreground">Data model</a>
-          <a href="#fleet" className="hover:text-foreground">Fleet view</a>
+          <button onClick={onPlan} className="hover:text-foreground">
+            Plan a system
+          </button>
+          <a href="#platform" className="hover:text-foreground">
+            Platform
+          </a>
+          <a href="#data-model" className="hover:text-foreground">
+            Data model
+          </a>
+          <a href="#fleet" className="hover:text-foreground">
+            Fleet view
+          </a>
         </nav>
         <a
           href="#demo"
@@ -144,33 +223,35 @@ function StatusDot({ status }: { status: SiteStatus }) {
   return <span className={`status-dot ${STATUS_META[status].className}`} aria-hidden />;
 }
 
-function Hero() {
+function Hero({ onPlan }: { onPlan: () => void }) {
   return (
     <section className="border-b border-border">
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 lg:grid-cols-[1.1fr_1fr] lg:gap-14 lg:py-24">
         <div>
           <p className="label-technical">Solar Pro — fleet operations software</p>
           <h1 className="mt-4 text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
-            Monitoring and asset management for utility-scale solar portfolios.
+            Plan, size, and manage solar systems with confidence.
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">
-            Solar Pro keeps telemetry, alerts, work orders, and production
-            reports in one system of record, so operations teams fix the right
-            device first and portfolio managers report from numbers both sides
-            trust.
+            Understand your electricity needs, estimate the right solar configuration, and manage
+            your energy assets from planning through operation.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
-              href="#demo"
+              href="#assessment"
+              onClick={(event) => {
+                event.preventDefault();
+                onPlan();
+              }}
               className="rounded-sm bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              Request a demo
+              Plan a solar system
             </a>
             <a
-              href="#platform"
+              href="#fleet"
               className="rounded-sm border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground hover:bg-muted"
             >
-              Read the platform overview
+              Manage solar operations
             </a>
           </div>
           <dl className="mt-12 grid grid-cols-3 gap-6 border-t border-border pt-6">
@@ -216,7 +297,8 @@ function Hero() {
                       PR {site.prPercent.toFixed(1)}%
                       {site.openAlerts > 0 && (
                         <span className="text-destructive">
-                          {" "}· {site.openAlerts} {site.openAlerts === 1 ? "alert" : "alerts"}
+                          {" "}
+                          · {site.openAlerts} {site.openAlerts === 1 ? "alert" : "alerts"}
                         </span>
                       )}
                     </p>
@@ -247,8 +329,8 @@ function Platform() {
               What the system does
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Five responsibilities, one database. Each capability exists
-              because an operations or reporting workflow needs it.
+              Five responsibilities, one database. Each capability exists because an operations or
+              reporting workflow needs it.
             </p>
           </div>
           <dl className="divide-y divide-border border-y border-border">
@@ -276,8 +358,8 @@ function DataModel() {
               A schema your engineers can inspect
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Six core entities cover the operational record. Field names below
-              are the actual column names, not marketing abstractions.
+              Six core entities cover the operational record. Field names below are the actual
+              column names, not marketing abstractions.
             </p>
           </div>
           <div className="overflow-x-auto border border-border bg-card">
@@ -325,8 +407,8 @@ function FleetView() {
               One table per decision
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              The portfolio view is a working table: sortable, filterable, and
-              exportable. Below is a representative slice using sample data.
+              The portfolio view is a working table: sortable, filterable, and exportable. Below is
+              a representative slice using sample data.
             </p>
           </div>
           <p className="font-mono text-xs text-muted-foreground">
@@ -341,8 +423,12 @@ function FleetView() {
               <tr className="border-b border-border">
                 <th className="label-technical px-4 py-2.5 font-medium">Site</th>
                 <th className="label-technical px-4 py-2.5 font-medium">Region</th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">Capacity (MWp)</th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">Energy today (kWh)</th>
+                <th className="label-technical px-4 py-2.5 text-right font-medium">
+                  Capacity (MWp)
+                </th>
+                <th className="label-technical px-4 py-2.5 text-right font-medium">
+                  Energy today (kWh)
+                </th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">PR (%)</th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">Open alerts</th>
                 <th className="label-technical px-4 py-2.5 font-medium">Status</th>
@@ -365,9 +451,7 @@ function FleetView() {
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
                     {site.prPercent.toFixed(1)}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.openAlerts}
-                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px]">{site.openAlerts}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-2 text-sm text-foreground">
                       <StatusDot status={site.status} />
@@ -397,9 +481,8 @@ function DemoSection() {
             See it against your own fleet
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Demos are run against a dataset shaped like your portfolio: same
-            inverter mix, same reporting periods, same alert rules you would
-            actually configure.
+            Demos are run against a dataset shaped like your portfolio: same inverter mix, same
+            reporting periods, same alert rules you would actually configure.
           </p>
           <ul className="mt-6 grid gap-3 text-sm text-muted-foreground">
             <li className="flex gap-3">
@@ -407,12 +490,12 @@ function DemoSection() {
               We review your telemetry sources and portfolio size from the form.
             </li>
             <li className="flex gap-3">
-              <span className="font-mono text-xs text-foreground">2.</span>
-              A 45-minute session covering the fleet view, alert triage, and reporting.
+              <span className="font-mono text-xs text-foreground">2.</span>A 45-minute session
+              covering the fleet view, alert triage, and reporting.
             </li>
             <li className="flex gap-3">
-              <span className="font-mono text-xs text-foreground">3.</span>
-              A written summary with a data-integration plan for your sites.
+              <span className="font-mono text-xs text-foreground">3.</span>A written summary with a
+              data-integration plan for your sites.
             </li>
           </ul>
         </div>
@@ -436,11 +519,17 @@ function Footer() {
 }
 
 function Index() {
+  const [showAssessment, setShowAssessment] = React.useState(false);
+
+  if (showAssessment) {
+    return <EnergyAssessment onExit={() => setShowAssessment(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
-      <Header />
+      <Header onPlan={() => setShowAssessment(true)} />
       <main>
-        <Hero />
+        <Hero onPlan={() => setShowAssessment(true)} />
         <Platform />
         <DataModel />
         <FleetView />
