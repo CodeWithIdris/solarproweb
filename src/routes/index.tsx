@@ -519,7 +519,7 @@ function Footer() {
 }
 
 function Index() {
-  const [showAssessment, setShowAssessment] = React.useState(false);
+  const [showAssessment, setShowAssessment] = useState(false);
 
   if (showAssessment) {
     return <EnergyAssessment onExit={() => setShowAssessment(false)} />;

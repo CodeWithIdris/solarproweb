@@ -8,6 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "test:calculations": "node --test --experimental-strip-types src/lib/energy-calculation.test.ts",
+    "test:configuration": "node --test --experimental-strip-types src/lib/system-configuration.test.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

@@ -1,4 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  calculateEnergyAssessment,
+  type CalculationAppliance,
+  type CalculationResult,
+  type Objective,
+} from "@/lib/energy-calculation";
+import { REFERENCE_EQUIPMENT_CATALOGUE } from "@/lib/equipment-catalogue";
+import { generateSystemConfigurations, type ConfigurationResult } from "@/lib/system-configuration";
 
 type ApplianceCategory =
   | "Lighting"
@@ -9,25 +17,7 @@ type ApplianceCategory =
   | "Pumps and Motors"
   | "Business Equipment"
   | "Other";
-type Objective =
-  | "Reduce electricity costs"
-  | "Backup essential appliances"
-  | "Power most of the property"
-  | "High energy independence"
-  | "Reduce generator dependence"
-  | "Custom requirement";
-type Appliance = {
-  id: string;
-  name: string;
-  category: ApplianceCategory;
-  watts: number;
-  quantity: number;
-  hours: number;
-  backup: boolean;
-  peak: boolean;
-  surge: "none" | "moderate" | "high";
-  priority: "essential" | "important" | "flexible";
-};
+type Appliance = CalculationAppliance & { category: ApplianceCategory };
 
 type Assessment = {
   name: string;
@@ -200,81 +190,6 @@ const initialAssessment: Assessment = {
   panelWatts: 550,
   appliances: library.slice(0, 4).map((item, index) => ({ ...item, id: `${item.name}-${index}` })),
 };
-
-function calculate(assessment: Assessment) {
-  const daily =
-    assessment.appliances.reduce((sum, item) => sum + item.watts * item.quantity * item.hours, 0) /
-    1000;
-  const connected =
-    assessment.appliances.reduce((sum, item) => sum + item.watts * item.quantity, 0) / 1000;
-  const peak =
-    assessment.appliances
-      .filter((item) => item.peak)
-      .reduce((sum, item) => sum + item.watts * item.quantity, 0) / 1000;
-  const essential =
-    assessment.appliances
-      .filter((item) => item.backup)
-      .reduce((sum, item) => sum + item.watts * item.quantity * item.hours, 0) / 1000;
-  const surgeLoad =
-    assessment.appliances
-      .filter((item) => item.peak && item.surge !== "none")
-      .reduce(
-        (sum, item) => sum + item.watts * item.quantity * (item.surge === "high" ? 1.5 : 0.5),
-        0,
-      ) / 1000;
-  const usableBattery = essential * (assessment.backupHours / 8);
-  const installedBattery = usableBattery / 0.8 / 0.92;
-  const inverter = Math.max(peak * 1.25, 1);
-  const solar = Math.max(
-    (daily / 4.5 / 0.8) *
-      {
-        "Reduce electricity costs": 0.7,
-        "Backup essential appliances": 0.85,
-        "Power most of the property": 1,
-        "High energy independence": 1.15,
-        "Reduce generator dependence": 1,
-        "Custom requirement": 0.9,
-      }[assessment.objective],
-    1,
-  );
-  const tiers = [
-    {
-      name: "Essential",
-      solar: solar * 0.75,
-      battery: installedBattery * 0.75,
-      inverter: inverter * 0.85,
-      note: "Critical and selected backup loads",
-    },
-    {
-      name: "Recommended",
-      solar,
-      battery: installedBattery,
-      inverter,
-      note: "Balanced around your stated objective",
-    },
-    {
-      name: "Extended",
-      solar: solar * 1.3,
-      battery: installedBattery * 1.5,
-      inverter: inverter * 1.2,
-      note: "More autonomy and inverter headroom",
-    },
-  ];
-  return {
-    daily,
-    monthly: daily * 30,
-    connected,
-    peak,
-    essential,
-    surgeLoad,
-    usableBattery,
-    installedBattery,
-    inverter,
-    solar,
-    panels: Math.ceil((solar * 1000) / assessment.panelWatts),
-    tiers,
-  };
-}
 
 function Field({
   label,
@@ -577,7 +492,9 @@ function LoadStep({
                         className="mt-1 w-28 rounded-sm border border-input bg-background px-1 py-1 text-xs"
                         value={item.priority}
                         onChange={(event) =>
-                          patch(item.id, { priority: event.target.value as Appliance["priority"] })
+                          patch(item.id, {
+                            priority: event.target.value as NonNullable<Appliance["priority"]>,
+                          })
                         }
                       >
                         <option>essential</option>
@@ -620,7 +537,7 @@ function ProfileStep({
 }: {
   assessment: Assessment;
   update: (patch: Partial<Assessment>) => void;
-  result: ReturnType<typeof calculate>;
+  result: CalculationResult;
 }) {
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
@@ -677,16 +594,40 @@ function ProfileStep({
               <option value="500">500 W</option>
               <option value="550">550 W</option>
               <option value="600">600 W</option>
+              <option value="0">Custom panel wattage</option>
             </select>
+            {![450, 500, 550, 600].includes(assessment.panelWatts) && (
+              <input
+                className={inputClass}
+                type="number"
+                min="1"
+                step="1"
+                placeholder="e.g. 545"
+                value={assessment.panelWatts || ""}
+                onChange={(event) => update({ panelWatts: Number(event.target.value) })}
+              />
+            )}
           </Field>
         </div>
       </div>
       <aside className="border border-border bg-muted/30 p-5">
         <p className="label-technical">Current profile</p>
         <div className="mt-5 grid gap-5">
-          <Metric label="Daily consumption" value={result.daily.toFixed(1)} unit="kWh" />
-          <Metric label="Essential energy" value={result.essential.toFixed(1)} unit="kWh/day" />
-          <Metric label="Peak simultaneous" value={result.peak.toFixed(2)} unit="kW" />
+          <Metric
+            label="Daily consumption"
+            value={result.energyProfile.dailyEnergyKWh.toFixed(1)}
+            unit="kWh"
+          />
+          <Metric
+            label="Essential energy"
+            value={result.backupAnalysis.backupDailyEnergyKWh.toFixed(1)}
+            unit="kWh/day"
+          />
+          <Metric
+            label="Peak simultaneous"
+            value={result.loadAnalysis.peakSimultaneousLoadKW.toFixed(2)}
+            unit="kW"
+          />
         </div>
       </aside>
     </div>
@@ -697,7 +638,7 @@ function AnalysisStep({
   result,
   assessment,
 }: {
-  result: ReturnType<typeof calculate>;
+  result: CalculationResult;
   assessment: Assessment;
 }) {
   return (
@@ -709,10 +650,26 @@ function AnalysisStep({
         selections, and peak selections you entered.
       </p>
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Daily consumption" value={result.daily.toFixed(1)} unit="kWh/day" />
-        <Metric label="Monthly consumption" value={result.monthly.toFixed(0)} unit="kWh/month" />
-        <Metric label="Connected load" value={result.connected.toFixed(2)} unit="kW" />
-        <Metric label="Peak simultaneous" value={result.peak.toFixed(2)} unit="kW" />
+        <Metric
+          label="Daily consumption"
+          value={result.energyProfile.dailyEnergyKWh.toFixed(1)}
+          unit="kWh/day"
+        />
+        <Metric
+          label="Monthly consumption"
+          value={result.energyProfile.monthlyEnergyKWh.toFixed(0)}
+          unit="kWh/month"
+        />
+        <Metric
+          label="Connected load"
+          value={result.loadAnalysis.totalConnectedLoadKW.toFixed(2)}
+          unit="kW"
+        />
+        <Metric
+          label="Peak simultaneous"
+          value={result.loadAnalysis.peakSimultaneousLoadKW.toFixed(2)}
+          unit="kW"
+        />
       </div>
       <div className="mt-8 overflow-x-auto border border-border bg-card">
         <table className="w-full min-w-[700px] text-left text-sm">
@@ -734,7 +691,11 @@ function AnalysisStep({
                 <td className="px-4 py-3 font-mono text-xs">{item.watts} W</td>
                 <td className="px-4 py-3 font-mono text-xs">{item.hours}</td>
                 <td className="px-4 py-3 font-mono text-xs">
-                  {((item.watts * item.quantity * item.hours) / 1000).toFixed(2)} kWh
+                  {(
+                    (result.loadAnalysis.applianceEnergy.find((entry) => entry.id === item.id)
+                      ?.dailyEnergyWh ?? 0) / 1000
+                  ).toFixed(2)}{" "}
+                  kWh
                 </td>
                 <td className="px-4 py-3 text-xs">{item.backup ? "Included" : "Excluded"}</td>
               </tr>
@@ -749,10 +710,12 @@ function AnalysisStep({
 function RecommendationStep({
   assessment,
   result,
+  configurations,
   onSave,
 }: {
   assessment: Assessment;
-  result: ReturnType<typeof calculate>;
+  result: CalculationResult;
+  configurations: ConfigurationResult;
   onSave: () => void;
 }) {
   return (
@@ -773,10 +736,26 @@ function RecommendationStep({
         </button>
       </div>
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Usable battery" value={result.usableBattery.toFixed(1)} unit="kWh" />
-        <Metric label="Installed battery" value={result.installedBattery.toFixed(1)} unit="kWh" />
-        <Metric label="Preferred inverter" value={result.inverter.toFixed(1)} unit="kVA" />
-        <Metric label="Solar array" value={result.solar.toFixed(1)} unit="kWp" />
+        <Metric
+          label="Usable battery"
+          value={result.backupAnalysis.requiredUsableBatteryStorageKWh.toFixed(1)}
+          unit="kWh"
+        />
+        <Metric
+          label="Installed battery"
+          value={result.backupAnalysis.estimatedInstalledBatteryCapacityKWh.toFixed(1)}
+          unit="kWh"
+        />
+        <Metric
+          label="Preferred inverter"
+          value={result.inverterAnalysis.preferredInverterKVA.toFixed(1)}
+          unit="kVA"
+        />
+        <Metric
+          label="Solar array"
+          value={result.solarAnalysis.requiredSolarArrayKWP.toFixed(1)}
+          unit="kWp"
+        />
       </div>
       <div className="mt-8 overflow-x-auto border border-border bg-card">
         <table className="w-full min-w-[720px] text-left text-sm">
@@ -791,20 +770,116 @@ function RecommendationStep({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {result.tiers.map((tier) => (
+            {[
+              result.recommendations.essential,
+              result.recommendations.recommended,
+              result.recommendations.extended,
+            ].map((tier) => (
               <tr key={tier.name} className={tier.name === "Recommended" ? "bg-muted/40" : ""}>
                 <td className="px-4 py-4 font-semibold">{tier.name}</td>
-                <td className="px-4 py-4 font-mono text-xs">{tier.solar.toFixed(1)} kWp</td>
-                <td className="px-4 py-4 font-mono text-xs">{tier.battery.toFixed(1)} kWh</td>
-                <td className="px-4 py-4 font-mono text-xs">{tier.inverter.toFixed(1)} kVA</td>
+                <td className="px-4 py-4 font-mono text-xs">{tier.solarArrayKWP.toFixed(1)} kWp</td>
                 <td className="px-4 py-4 font-mono text-xs">
-                  {Math.ceil((tier.solar * 1000) / assessment.panelWatts)}
+                  {tier.batteryCapacityKWh.toFixed(1)} kWh
                 </td>
-                <td className="px-4 py-4 text-muted-foreground">{tier.note}</td>
+                <td className="px-4 py-4 font-mono text-xs">
+                  {tier.inverterCapacityKVA.toFixed(1)} kVA
+                </td>
+                <td className="px-4 py-4 font-mono text-xs">{tier.numberOfPanels}</td>
+                <td className="px-4 py-4 text-muted-foreground">{tier.basis}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="mt-8 border-t border-border pt-6">
+        <p className="label-technical">Panel quantity comparison</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Required solar capacity:{" "}
+          <span className="font-mono text-foreground">
+            {result.recommendations.recommended.solarArrayKWP.toFixed(2)} kWp
+          </span>
+          . Quantities are rounded upward so configured capacity does not fall below the
+          requirement.
+        </p>
+        <div className="mt-4 overflow-x-auto border border-border bg-card">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="label-technical px-4 py-3">Panel wattage</th>
+                <th className="label-technical px-4 py-3">Panels required</th>
+                <th className="label-technical px-4 py-3">Configured capacity</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {configurations.panelComparison.map((item) => (
+                <tr key={item.panelWattage}>
+                  <td className="px-4 py-3 font-mono text-xs">{item.panelWattage} W</td>
+                  <td className="px-4 py-3 font-mono text-xs">{item.requiredPanels}</td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    {item.configuredCapacityKWP.toFixed(2)} kWp
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="mt-8 border-t border-border pt-6">
+        <p className="label-technical">Possible equipment configuration — reference data</p>
+        <div className="mt-4 overflow-x-auto border border-border bg-card">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="label-technical px-4 py-3">Tier</th>
+                <th className="label-technical px-4 py-3">Panel configuration</th>
+                <th className="label-technical px-4 py-3">Battery bank</th>
+                <th className="label-technical px-4 py-3">Inverter</th>
+                <th className="label-technical px-4 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {configurations.configurations.map((configuration) => (
+                <tr key={configuration.id}>
+                  <td className="px-4 py-3 font-semibold">{configuration.recommendationTier}</td>
+                  <td className="px-4 py-3">
+                    <span className="block font-medium">
+                      {configuration.solarArray.model?.model ?? "No valid panel"}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {configuration.solarArray.panelQuantity} ×{" "}
+                      {configuration.solarArray.selectedPanelWattage} W ={" "}
+                      {configuration.solarArray.configuredSolarCapacityKWP.toFixed(2)} kWp
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="block font-medium">
+                      {configuration.batteryBank.unitCount} ×{" "}
+                      {configuration.batteryBank.model?.model ?? "No valid battery"}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {configuration.batteryBank.configuredNominalCapacityKWh.toFixed(2)} kWh
+                      nominal
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="block font-medium">
+                      {configuration.inverter.model?.model ?? "No compatible inverter"}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {configuration.inverter.selectedCapacityKVA.toFixed(1)} kVA selected
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs">{configuration.compatibilityStatus}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Reference catalogue data is for planning only, not live availability. Verify equipment
+          ratings, compatibility, and installation requirements with the manufacturer and a
+          qualified professional.
+        </p>
       </div>
       <div className="mt-8 grid gap-6 border-t border-border pt-6 lg:grid-cols-2">
         <div>
@@ -812,31 +887,43 @@ function RecommendationStep({
           <ul className="mt-3 grid gap-2 text-sm text-muted-foreground">
             <li>
               Backup duration:{" "}
-              <span className="font-mono text-foreground">{assessment.backupHours} hours</span>
+              <span className="font-mono text-foreground">
+                {result.backupAnalysis.backupDurationHours} hours
+              </span>
             </li>
             <li>
               Battery usable capacity:{" "}
-              <span className="font-mono text-foreground">80% depth of discharge</span>
+              <span className="font-mono text-foreground">
+                {result.assumptions.batteryDepthOfDischarge * 100}% depth of discharge
+              </span>
             </li>
             <li>
-              System efficiency: <span className="font-mono text-foreground">92%</span>
+              System efficiency:{" "}
+              <span className="font-mono text-foreground">
+                {result.assumptions.batterySystemEfficiency * 100}%
+              </span>
             </li>
             <li>
               Solar production:{" "}
-              <span className="font-mono text-foreground">4.5 peak sun hours/day</span>
+              <span className="font-mono text-foreground">
+                {result.assumptions.peakSunHours} peak sun hours/day
+              </span>
             </li>
             <li>
-              Inverter margin: <span className="font-mono text-foreground">25%</span>
+              Inverter margin:{" "}
+              <span className="font-mono text-foreground">
+                {result.assumptions.inverterDesignMargin * 100}%
+              </span>
             </li>
           </ul>
         </div>
         <div>
           <p className="label-technical">How we calculated this</p>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Energy is calculated per appliance as watts × quantity × daily hours. Battery sizing
-            uses selected backup energy, duration, depth of discharge, and system efficiency. Solar
-            sizing uses the selected objective and an initial 4.5 peak-sun-hour assumption.
-          </p>
+          <ul className="mt-3 grid gap-2 text-sm leading-relaxed text-muted-foreground">
+            {result.methodology.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
         </div>
       </div>
       <p className="mt-8 border-l-2 border-solar bg-muted/30 p-4 text-xs leading-relaxed text-muted-foreground">
@@ -852,7 +939,12 @@ export function EnergyAssessment({ onExit }: { onExit: () => void }) {
   const [step, setStep] = useState(0);
   const [assessment, setAssessment] = useState<Assessment>(initialAssessment);
   const [saved, setSaved] = useState<Assessment[]>([]);
-  const result = useMemo(() => calculate(assessment), [assessment]);
+  const result = useMemo(() => calculateEnergyAssessment(assessment), [assessment]);
+  const configurations = useMemo(
+    () =>
+      generateSystemConfigurations(result, assessment.panelWatts, REFERENCE_EQUIPMENT_CATALOGUE),
+    [assessment.panelWatts, result],
+  );
   useEffect(() => {
     try {
       setSaved(JSON.parse(localStorage.getItem("solar-pro-assessments") ?? "[]"));
@@ -899,7 +991,14 @@ export function EnergyAssessment({ onExit }: { onExit: () => void }) {
         {step === 1 && <LoadStep assessment={assessment} update={update} />}
         {step === 2 && <ProfileStep assessment={assessment} update={update} result={result} />}
         {step === 3 && <AnalysisStep assessment={assessment} result={result} />}
-        {step === 4 && <RecommendationStep assessment={assessment} result={result} onSave={save} />}
+        {step === 4 && (
+          <RecommendationStep
+            assessment={assessment}
+            result={result}
+            configurations={configurations}
+            onSave={save}
+          />
+        )}
         <div className="mt-10 flex justify-between border-t border-border pt-5">
           <button
             className={`${buttonClass} border border-border bg-card ${step === 0 ? "invisible" : ""}`}
