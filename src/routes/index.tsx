@@ -119,6 +119,16 @@ const STATUS_META: Record<SiteStatus, { label: string; className: string }> = {
 
 const CAPABILITIES: { term: string; detail: string }[] = [
   {
+    term: "System planning",
+    detail:
+      "Assess property loads, usage patterns, backup requirements, and solar objectives before selecting a practical system configuration.",
+  },
+  {
+    term: "Configuration recommendations",
+    detail:
+      "Translate calculated energy, battery, inverter, and solar requirements into reference equipment configurations with required-versus-provided comparisons.",
+  },
+  {
     term: "Telemetry ingestion",
     detail:
       "Meter, inverter, and weather-station readings normalised to a common interval. SCADA historian and API connectors; gaps are flagged, not silently interpolated.",
@@ -146,6 +156,27 @@ const CAPABILITIES: { term: string; detail: string }[] = [
 ];
 
 const DATA_MODEL: { entity: string; keyFields: string; description: string }[] = [
+  {
+    entity: "Assessment",
+    keyFields: "property, loads, objective, backup_duration",
+    description: "A planning record that captures the inputs behind a solar system recommendation.",
+  },
+  {
+    entity: "Energy profile",
+    keyFields: "daily_kwh, monthly_kwh, peak_load_kw, essential_energy_kwh",
+    description: "The calculated consumption and demand profile used to size a system.",
+  },
+  {
+    entity: "System configuration",
+    keyFields: "tier, panels, battery_bank, inverter, compatibility_status",
+    description: "A possible equipment combination compared against the calculated requirements.",
+  },
+  {
+    entity: "Calculation result",
+    keyFields: "assumptions, requirements, warnings, methodology",
+    description:
+      "The transparent calculation record that explains how a recommendation was generated.",
+  },
   {
     entity: "Site",
     keyFields: "name, region, capacity_mwp, grid_operator, commissioned_on",
@@ -191,7 +222,7 @@ function Header({ onPlan }: { onPlan: () => void }) {
             SOLAR PRO
           </span>
           <span className="hidden font-mono text-xs text-muted-foreground sm:inline">
-            fleet operations
+            planning + fleet operations
           </span>
         </a>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
@@ -228,7 +259,7 @@ function Hero({ onPlan }: { onPlan: () => void }) {
     <section className="border-b border-border">
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 lg:grid-cols-[1.1fr_1fr] lg:gap-14 lg:py-24">
         <div>
-          <p className="label-technical">Solar Pro — fleet operations software</p>
+          <p className="label-technical">Solar Pro — planning and fleet operations software</p>
           <h1 className="mt-4 text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
             Plan, size, and manage solar systems with confidence.
           </h1>
@@ -329,8 +360,8 @@ function Platform() {
               What the system does
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Five responsibilities, one database. Each capability exists because an operations or
-              reporting workflow needs it.
+              Planning and operations share one technical foundation. Each capability exists because
+              a system design, monitoring, maintenance, or reporting workflow needs it.
             </p>
           </div>
           <dl className="divide-y divide-border border-y border-border">
@@ -358,8 +389,8 @@ function DataModel() {
               A schema your engineers can inspect
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Six core entities cover the operational record. Field names below are the actual
-              column names, not marketing abstractions.
+              Planning and operations meet in a shared product model: assessments become system
+              configurations, then installed sites, devices, readings, and reports.
             </p>
           </div>
           <div className="overflow-x-auto border border-border bg-card">
@@ -511,7 +542,7 @@ function Footer() {
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8">
         <p className="font-mono text-sm font-semibold text-foreground">SOLAR PRO</p>
         <p className="text-xs text-muted-foreground">
-          Monitoring and asset management for utility-scale solar.
+          Plan, size, and manage solar systems from assessment through operation.
         </p>
       </div>
     </footer>

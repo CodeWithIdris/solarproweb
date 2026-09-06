@@ -20,9 +20,7 @@ export function DemoRequestForm() {
       work_email: String(data.get("work_email") ?? "").trim(),
       company: String(data.get("company") ?? "").trim(),
       role: String(data.get("role") ?? "operations"),
-      fleet_size_mw: data.get("fleet_size_mw")
-        ? Number(data.get("fleet_size_mw"))
-        : null,
+      fleet_size_mw: data.get("fleet_size_mw") ? Number(data.get("fleet_size_mw")) : null,
       message: String(data.get("message") ?? "").trim() || null,
     };
 
@@ -32,9 +30,11 @@ export function DemoRequestForm() {
     setErrorMessage("");
 
     // Types regenerate outside this edit cycle; the insert shape matches the table.
-    const { error } = await (supabase.from("demo_requests") as unknown as {
-      insert: (row: typeof payload) => Promise<{ error: { message: string } | null }>;
-    }).insert(payload);
+    const { error } = await (
+      supabase.from("demo_requests") as unknown as {
+        insert: (row: typeof payload) => Promise<{ error: { message: string } | null }>;
+      }
+    ).insert(payload);
 
     if (error) {
       setErrorMessage(error.message);
@@ -50,11 +50,11 @@ export function DemoRequestForm() {
       <div className="border border-border bg-card p-6">
         <p className="label-technical">Request received</p>
         <p className="mt-3 text-base font-medium text-foreground">
-          Thank you. Your demo request has been recorded.
+          Thanks. Your request has been received.
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          We respond within two business days with a session scoped to your
-          portfolio size and telemetry sources.
+          Our team will contact you to arrange a suitable time and understand your portfolio and
+          telemetry sources.
         </p>
         <button
           type="button"

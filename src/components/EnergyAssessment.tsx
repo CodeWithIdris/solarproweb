@@ -6,6 +6,8 @@ import {
   type Objective,
 } from "@/lib/energy-calculation";
 import { REFERENCE_EQUIPMENT_CATALOGUE } from "@/lib/equipment-catalogue";
+import { supabase } from "@/integrations/supabase/client";
+import { saveAssessmentProject } from "@/lib/project-persistence";
 import { generateSystemConfigurations, type ConfigurationResult } from "@/lib/system-configuration";
 
 type ApplianceCategory =
@@ -25,6 +27,7 @@ type Assessment = {
   country: string;
   location: string;
   occupants: string;
+  systemType: "Grid-tied" | "Hybrid" | "Off-grid";
   objective: Objective;
   backupHours: number;
   panelWatts: number;
@@ -188,6 +191,7 @@ const initialAssessment: Assessment = {
   country: "Nigeria",
   location: "",
   occupants: "",
+  systemType: "Hybrid",
   objective: "Backup essential appliances",
   backupHours: 8,
   panelWatts: 550,
@@ -312,6 +316,22 @@ function PropertyStep({
               value={assessment.occupants}
               onChange={(event) => update({ occupants: event.target.value })}
             />
+          </Field>
+          <Field
+            label="Solar system type"
+            hint="This frames the planning result; final design depends on site and equipment review."
+          >
+            <select
+              className={inputClass}
+              value={assessment.systemType}
+              onChange={(event) =>
+                update({ systemType: event.target.value as Assessment["systemType"] })
+              }
+            >
+              <option>Grid-tied</option>
+              <option>Hybrid</option>
+              <option>Off-grid</option>
+            </select>
           </Field>
         </div>
       </div>
@@ -723,7 +743,7 @@ function RecommendationStep({
   configurations: ConfigurationResult;
   onSelectConfiguration: (configurationId: string) => void;
   onUpdateNotes: (notes: string) => void;
-  onSave: () => void;
+  onSave: () => Promise<void>;
 }) {
   const selectedConfiguration = configurations.configurations.find(
     (configuration) => configuration.id === assessment.selectedConfigurationId,
@@ -741,8 +761,8 @@ function RecommendationStep({
             calculator answer.
           </p>
         </div>
-        <button className={`${buttonClass} bg-primary text-primary-foreground`} onClick={onSave}>
-          Save assessment
+        <button className={`${buttonClass} bg-primary text-primary-foreground`} onClick={() => void onSave()}>
+          Save solar project
         </button>
       </div>
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -1082,10 +1102,18 @@ export function EnergyAssessment({ onExit }: { onExit: () => void }) {
       });
     }
   };
-  const save = () => {
+  const save = async () => {
     const next = [...saved.filter((item) => item.name !== assessment.name), assessment];
     setSaved(next);
     localStorage.setItem("solar-pro-assessments", JSON.stringify(next));
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      localStorage.setItem("solar-pro-pending-project", JSON.stringify({ assessment, result, configurations }));
+      window.location.href = "/login?returnTo=/dashboard";
+      return;
+    }
+    const response = await saveAssessmentProject(assessment, result, configurations);
+    if (response.error) window.alert(response.error.message);
   };
   return (
     <div className="min-h-screen bg-background text-foreground">

@@ -113,6 +113,10 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 /* Functional, non-decorative utilities */
