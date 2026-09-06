@@ -17,7 +17,8 @@ function Settings() {
       if (!data.user) return;
       const query = (supabase as unknown as { from: (table: string) => unknown }).from("profiles") as { select: (fields: string) => { eq: (field: string, value: string) => { maybeSingle: () => Promise<{ data: SettingsProfile | null }> } } };
       const result = await query.select("*").eq("id", data.user.id).maybeSingle();
-      if (result.data) setProfile((current) => ({ ...current, ...result.data, email: data.user.email ?? result.data.email }));
+      const loadedProfile = result.data;
+      if (loadedProfile) setProfile((current) => ({ ...current, ...loadedProfile, email: data.user.email ?? loadedProfile.email }));
     });
   }, []);
   async function save(event: FormEvent) { event.preventDefault(); setState("Saving…"); setError(""); const { data } = await supabase.auth.getUser(); if (!data.user) { setError("Your session has expired. Please sign in again."); setState(""); return; } const query = supabase.from("profiles") as unknown as { update: (row: Record<string, string>) => { eq: (field: string, value: string) => Promise<{ error: { message: string } | null }> } }; const result = await query.update({ full_name: profile.full_name, phone: profile.phone, company_name: profile.company_name, country: profile.country }).eq("id", data.user.id); if (result.error) setError(result.error.message); else setState("Changes saved"); }

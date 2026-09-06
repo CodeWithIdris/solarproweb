@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { DemoRequestForm } from "@/components/DemoRequestForm";
 import { EnergyAssessment } from "@/components/EnergyAssessment";
+import type { SolarSite } from "@/services/solar-data/site-types";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -47,66 +48,90 @@ export const Route = createFileRoute("/")({
 
 type SiteStatus = "operational" | "degraded" | "fault";
 
-interface SampleSite {
-  id: string;
-  name: string;
-  region: string;
-  capacityMWp: number;
-  status: SiteStatus;
-  todayKwh: number;
-  prPercent: number;
-  openAlerts: number;
-}
-
-const SAMPLE_SITES: SampleSite[] = [
+const SAMPLE_SITES: SolarSite[] = [
   {
     id: "NG-KD-01",
     name: "Kaduna North",
     region: "Kaduna, NG",
-    capacityMWp: 12.4,
+    country: "Nigeria",
+    latitude: 10.52,
+    longitude: 7.44,
+    installedCapacityKw: 12400,
+    installedCapacityMwp: 12.4,
+    dataMode: "demo",
+    dataProvider: "Solar Pro demo dataset",
+    lastUpdated: "2026-09-06T14:32:00Z",
+    expectedEnergyTodayKWh: 68_410,
     status: "operational",
-    todayKwh: 68_410,
-    prPercent: 81.2,
+    performanceRatio: 81.2,
     openAlerts: 0,
   },
   {
     id: "NG-KD-02",
     name: "Kaduna South",
     region: "Kaduna, NG",
-    capacityMWp: 9.8,
+    country: "Nigeria",
+    latitude: 10.48,
+    longitude: 7.4,
+    installedCapacityKw: 9800,
+    installedCapacityMwp: 9.8,
+    dataMode: "demo",
+    dataProvider: "Solar Pro demo dataset",
+    lastUpdated: "2026-09-06T14:32:00Z",
+    expectedEnergyTodayKWh: 51_930,
     status: "operational",
-    todayKwh: 51_930,
-    prPercent: 79.6,
+    performanceRatio: 79.6,
     openAlerts: 1,
   },
   {
     id: "NG-NS-01",
     name: "Nasarawa East",
     region: "Nasarawa, NG",
-    capacityMWp: 20.0,
+    country: "Nigeria",
+    latitude: 8.54,
+    longitude: 8.16,
+    installedCapacityKw: 20000,
+    installedCapacityMwp: 20.0,
+    dataMode: "demo",
+    dataProvider: "Solar Pro demo dataset",
+    lastUpdated: "2026-09-06T14:32:00Z",
+    expectedEnergyTodayKWh: 96_120,
     status: "degraded",
-    todayKwh: 96_120,
-    prPercent: 71.4,
+    performanceRatio: 71.4,
     openAlerts: 3,
   },
   {
     id: "NG-KN-01",
     name: "Kano River",
     region: "Kano, NG",
-    capacityMWp: 7.5,
+    country: "Nigeria",
+    latitude: 12.0,
+    longitude: 8.52,
+    installedCapacityKw: 7500,
+    installedCapacityMwp: 7.5,
+    dataMode: "demo",
+    dataProvider: "Solar Pro demo dataset",
+    lastUpdated: "2026-09-06T14:32:00Z",
+    expectedEnergyTodayKWh: 42_060,
     status: "operational",
-    todayKwh: 42_060,
-    prPercent: 82.8,
+    performanceRatio: 82.8,
     openAlerts: 0,
   },
   {
     id: "GH-AS-01",
     name: "Ashanti Ridge",
     region: "Ashanti, GH",
-    capacityMWp: 15.2,
+    country: "Ghana",
+    latitude: 6.69,
+    longitude: -1.62,
+    installedCapacityKw: 15200,
+    installedCapacityMwp: 15.2,
+    dataMode: "demo",
+    dataProvider: "Solar Pro demo dataset",
+    lastUpdated: "2026-09-06T14:32:00Z",
+    expectedEnergyTodayKWh: 18_440,
     status: "fault",
-    todayKwh: 18_440,
-    prPercent: 22.1,
+    performanceRatio: 22.1,
     openAlerts: 6,
   },
 ];
@@ -316,16 +341,16 @@ function Hero({ onPlan }: { onPlan: () => void }) {
                     <div>
                       <p className="text-sm font-medium text-foreground">{site.name}</p>
                       <p className="font-mono text-xs text-muted-foreground">
-                        {site.id} · {site.capacityMWp.toFixed(1)} MWp
+                        {site.id} · {site.installedCapacityMwp.toFixed(1)} MWp
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-sm text-foreground">
-                      {formatNumber(site.todayKwh)} kWh
+                      {formatNumber(site.expectedEnergyTodayKWh ?? 0)} kWh expected
                     </p>
                     <p className="font-mono text-xs text-muted-foreground">
-                      PR {site.prPercent.toFixed(1)}%
+                      Modelled PR {site.performanceRatio?.toFixed(1) ?? "—"}% · {site.dataMode}
                       {site.openAlerts > 0 && (
                         <span className="text-destructive">
                           {" "}
@@ -424,8 +449,8 @@ function DataModel() {
 }
 
 function FleetView() {
-  const totalCapacity = SAMPLE_SITES.reduce((sum, s) => sum + s.capacityMWp, 0);
-  const totalEnergy = SAMPLE_SITES.reduce((sum, s) => sum + s.todayKwh, 0);
+  const totalCapacity = SAMPLE_SITES.reduce((sum, s) => sum + s.installedCapacityMwp, 0);
+  const totalEnergy = SAMPLE_SITES.reduce((sum, s) => sum + (s.expectedEnergyTodayKWh ?? 0), 0);
   const totalAlerts = SAMPLE_SITES.reduce((sum, s) => sum + s.openAlerts, 0);
 
   return (
@@ -458,11 +483,13 @@ function FleetView() {
                   Capacity (MWp)
                 </th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">
-                  Energy today (kWh)
+                  Expected today (kWh)
                 </th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">PR (%)</th>
+                <th className="label-technical px-4 py-2.5 text-right font-medium">
+                  Modelled PR (%)
+                </th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">Open alerts</th>
-                <th className="label-technical px-4 py-2.5 font-medium">Status</th>
+                <th className="label-technical px-4 py-2.5 font-medium">Status / data</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -474,19 +501,19 @@ function FleetView() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{site.region}</td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.capacityMWp.toFixed(1)}
+                    {site.installedCapacityMwp.toFixed(1)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {formatNumber(site.todayKwh)}
+                    {formatNumber(site.expectedEnergyTodayKWh ?? 0)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.prPercent.toFixed(1)}
+                    {site.performanceRatio?.toFixed(1) ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">{site.openAlerts}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-2 text-sm text-foreground">
                       <StatusDot status={site.status} />
-                      {STATUS_META[site.status].label}
+                      {STATUS_META[site.status].label} · {site.dataMode}
                     </span>
                   </td>
                 </tr>
