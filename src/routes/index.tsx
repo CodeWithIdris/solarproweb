@@ -46,7 +46,7 @@ export const Route = createFileRoute("/")({
 /* Clearly labelled as example data where it appears.                  */
 /* ------------------------------------------------------------------ */
 
-type SiteStatus = "operational" | "degraded" | "fault";
+type SiteStatus = SolarSite["status"];
 
 const SAMPLE_SITES: SolarSite[] = [
   {
@@ -61,10 +61,7 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 68_410,
-    status: "operational",
-    performanceRatio: 81.2,
-    openAlerts: 0,
+    status: "not_connected",
   },
   {
     id: "NG-KD-02",
@@ -78,10 +75,7 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 51_930,
-    status: "operational",
-    performanceRatio: 79.6,
-    openAlerts: 1,
+    status: "not_connected",
   },
   {
     id: "NG-NS-01",
@@ -95,10 +89,7 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 96_120,
-    status: "degraded",
-    performanceRatio: 71.4,
-    openAlerts: 3,
+    status: "not_connected",
   },
   {
     id: "NG-KN-01",
@@ -112,10 +103,7 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 42_060,
-    status: "operational",
-    performanceRatio: 82.8,
-    openAlerts: 0,
+    status: "not_connected",
   },
   {
     id: "GH-AS-01",
@@ -129,10 +117,7 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 18_440,
-    status: "fault",
-    performanceRatio: 22.1,
-    openAlerts: 6,
+    status: "not_connected",
   },
 ];
 
@@ -140,6 +125,8 @@ const STATUS_META: Record<SiteStatus, { label: string; className: string }> = {
   operational: { label: "Operational", className: "bg-status-ok" },
   degraded: { label: "Degraded", className: "bg-status-warn" },
   fault: { label: "Fault", className: "bg-status-fault" },
+  unknown: { label: "Status unavailable", className: "bg-status-warn" },
+  not_connected: { label: "No connected telemetry", className: "bg-status-warn" },
 };
 
 const CAPABILITIES: { term: string; detail: string }[] = [
@@ -347,11 +334,16 @@ function Hero({ onPlan }: { onPlan: () => void }) {
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-sm text-foreground">
-                      {formatNumber(site.expectedEnergyTodayKWh ?? 0)} kWh expected
+                      {site.expectedEnergyTodayKWh === undefined
+                        ? "Generation unavailable"
+                        : `${formatNumber(site.expectedEnergyTodayKWh)} kWh estimated`}
                     </p>
                     <p className="font-mono text-xs text-muted-foreground">
-                      Modelled PR {site.performanceRatio?.toFixed(1) ?? "—"}% · {site.dataMode}
-                      {site.openAlerts > 0 && (
+                      {site.performanceRatio === undefined
+                        ? "Performance unavailable"
+                        : `Estimated PR ${site.performanceRatio.toFixed(1)}%`}{" "}
+                      · {site.dataMode}
+                      {site.openAlerts !== undefined && site.openAlerts > 0 && (
                         <span className="text-destructive">
                           {" "}
                           · {site.openAlerts} {site.openAlerts === 1 ? "alert" : "alerts"}
@@ -451,7 +443,7 @@ function DataModel() {
 function FleetView() {
   const totalCapacity = SAMPLE_SITES.reduce((sum, s) => sum + s.installedCapacityMwp, 0);
   const totalEnergy = SAMPLE_SITES.reduce((sum, s) => sum + (s.expectedEnergyTodayKWh ?? 0), 0);
-  const totalAlerts = SAMPLE_SITES.reduce((sum, s) => sum + s.openAlerts, 0);
+  const totalAlerts = SAMPLE_SITES.reduce((sum, s) => sum + (s.openAlerts ?? 0), 0);
 
   return (
     <section id="fleet" className="border-b border-border">
@@ -468,8 +460,9 @@ function FleetView() {
             </p>
           </div>
           <p className="font-mono text-xs text-muted-foreground">
-            Totals: {totalCapacity.toFixed(1)} MWp · {formatNumber(totalEnergy)} kWh today ·{" "}
-            {totalAlerts} open alerts
+            Totals: {totalCapacity.toFixed(1)} MWp ·{" "}
+            {totalEnergy ? `${formatNumber(totalEnergy)} estimated kWh` : "Generation unavailable"}{" "}
+            · {totalAlerts ? `${totalAlerts} alerts from telemetry` : "No connected alerts"}
           </p>
         </div>
 
@@ -485,9 +478,7 @@ function FleetView() {
                 <th className="label-technical px-4 py-2.5 text-right font-medium">
                   Expected today (kWh)
                 </th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">
-                  Modelled PR (%)
-                </th>
+                <th className="label-technical px-4 py-2.5 text-right font-medium">Performance</th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">Open alerts</th>
                 <th className="label-technical px-4 py-2.5 font-medium">Status / data</th>
               </tr>
@@ -504,12 +495,18 @@ function FleetView() {
                     {site.installedCapacityMwp.toFixed(1)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {formatNumber(site.expectedEnergyTodayKWh ?? 0)}
+                    {site.expectedEnergyTodayKWh === undefined
+                      ? "Unavailable"
+                      : `${formatNumber(site.expectedEnergyTodayKWh)} estimated`}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.performanceRatio?.toFixed(1) ?? "—"}
+                    {site.performanceRatio === undefined
+                      ? "Unavailable"
+                      : `${site.performanceRatio.toFixed(1)} estimated`}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">{site.openAlerts}</td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px]">
+                    {site.openAlerts === undefined ? "Unavailable" : site.openAlerts}
+                  </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-2 text-sm text-foreground">
                       <StatusDot status={site.status} />

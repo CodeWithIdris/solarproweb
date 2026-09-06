@@ -21,6 +21,6 @@ export interface SolarSite {
   expectedEnergyTodayKWh?: number;
   actualEnergyTodayKWh?: number;
   performanceRatio?: number;
-  openAlerts: number;
-  status: "operational" | "degraded" | "fault";
+  openAlerts?: number;
+  status: "operational" | "degraded" | "fault" | "unknown" | "not_connected";
 }
