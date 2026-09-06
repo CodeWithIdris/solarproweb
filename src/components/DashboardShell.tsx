@@ -68,6 +68,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             <Link to="/dashboard/settings" activeProps={{ className: "text-foreground" }}>
               Settings
             </Link>
+            <Link to="/dashboard/developer" activeProps={{ className: "text-foreground" }}>
+              Developer API
+            </Link>
             <button onClick={logout} className="text-foreground underline underline-offset-4">
               Log out
             </button>

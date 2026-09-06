@@ -15,6 +15,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as DashboardDeveloperRouteImport } from './routes/dashboard.developer'
 import { Route as DashboardProjectsRouteImport } from './routes/dashboard.projects'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard.settings'
 import { Route as DashboardProjectsIdRouteImport } from './routes/dashboard.projects.$id'
@@ -49,6 +50,11 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardDeveloperRoute = DashboardDeveloperRouteImport.update({
+  id: '/developer',
+  path: '/developer',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardProjectsRoute = DashboardProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/dashboard/developer': typeof DashboardDeveloperRoute
   '/dashboard/projects': typeof DashboardProjectsRouteWithChildren
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/projects/$id': typeof DashboardProjectsIdRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/dashboard/developer': typeof DashboardDeveloperRoute
   '/dashboard/projects': typeof DashboardProjectsRouteWithChildren
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/projects/$id': typeof DashboardProjectsIdRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
+  '/dashboard/developer': typeof DashboardDeveloperRoute
   '/dashboard/projects': typeof DashboardProjectsRouteWithChildren
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/projects/$id': typeof DashboardProjectsIdRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/dashboard/developer'
     | '/dashboard/projects'
     | '/dashboard/settings'
     | '/dashboard/projects/$id'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/dashboard/developer'
     | '/dashboard/projects'
     | '/dashboard/settings'
     | '/dashboard/projects/$id'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/signup'
+    | '/dashboard/developer'
     | '/dashboard/projects'
     | '/dashboard/settings'
     | '/dashboard/projects/$id'
@@ -188,6 +200,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/developer': {
+      id: '/dashboard/developer'
+      path: '/developer'
+      fullPath: '/dashboard/developer'
+      preLoaderRoute: typeof DashboardDeveloperRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/projects': {
       id: '/dashboard/projects'
       path: '/projects'
@@ -224,11 +243,13 @@ const DashboardProjectsRouteWithChildren =
   DashboardProjectsRoute._addFileChildren(DashboardProjectsRouteChildren)
 
 interface DashboardRouteChildren {
+  DashboardDeveloperRoute: typeof DashboardDeveloperRoute
   DashboardProjectsRoute: typeof DashboardProjectsRouteWithChildren
   DashboardSettingsRoute: typeof DashboardSettingsRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardDeveloperRoute: DashboardDeveloperRoute,
   DashboardProjectsRoute: DashboardProjectsRouteWithChildren,
   DashboardSettingsRoute: DashboardSettingsRoute,
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { getProject } from "@/lib/project-store";
 import { projectSummary, type SolarProjectRecord } from "@/lib/project-types";
+import { SolarResourcePanel } from "@/components/SolarResourcePanel";
 
 export const Route = createFileRoute("/dashboard/projects/$id")({ component: ProjectDetail });
 function ProjectDetail() {
@@ -30,6 +31,8 @@ function ProjectDetail() {
       </DashboardShell>
     );
   const summary = projectSummary(project);
+  const latitude = project.assessment_inputs["latitude"];
+  const longitude = project.assessment_inputs["longitude"];
   const recommendation = project.calculation_result.recommendations.recommended;
   const configuration = project.system_configuration.configurations.find(
     (item) => item.recommendationTier === (project.selected_recommendation_tier ?? "Recommended"),
@@ -136,6 +139,9 @@ function ProjectDetail() {
           {JSON.stringify(project.assessment_inputs, null, 2)}
         </pre>
       </section>
+      {typeof latitude === "number" && typeof longitude === "number" && (
+        <SolarResourcePanel latitude={latitude} longitude={longitude} />
+      )}
     </DashboardShell>
   );
 }
