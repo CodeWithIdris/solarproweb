@@ -1,4 +1,4 @@
-import { ProviderPolicy, providerPolicy } from "./provider-policy.ts";
+import { ProviderPolicy, providerPolicy, type ProviderRegistration } from "./provider-policy.ts";
 import { buildCacheKey, cachedValue } from "./solar-data-service.ts";
 import type { SolarDataset, SolarLocationInsight } from "./insight-types.ts";
 import type {
@@ -122,15 +122,13 @@ export class LocationInsightService {
     request: LocationInsightRequest,
     providerRequest: PVGISRequest,
     providerLog: SolarLocationInsight["providerLog"],
-    load: (registration: { provider: { id: string } } & { provider: never }) => Promise<T>,
+    load: (registration: ProviderRegistration) => Promise<T>,
     preferOverride?: string[],
   ): Promise<T | undefined> {
     const candidates = this.policy.select({
       location: providerRequest.location,
       dataset,
-      ...(preferOverride ?? request.preferredProviders
-        ? { preferredProviders: preferOverride ?? request.preferredProviders ?? [] }
-        : {}),
+      preferredProviders: preferOverride ?? request.preferredProviders ?? [],
       ...(request.connectedProviders ? { connectedProviders: request.connectedProviders } : {}),
     });
 
@@ -146,9 +144,7 @@ export class LocationInsightService {
         providerRequest.systemLossPercent,
       ]);
       try {
-        const value = await cachedValue<T>(key, this.ttlMs, () =>
-          load(registration as unknown as { provider: never }),
-        );
+        const value = await cachedValue<T>(key, this.ttlMs, () => load(registration));
         providerLog.push({ provider: registration.id, dataset, outcome: "available" });
         return value;
       } catch (error) {
