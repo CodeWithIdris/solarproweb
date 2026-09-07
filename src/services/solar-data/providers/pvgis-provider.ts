@@ -121,7 +121,11 @@ export class PVGISProvider implements SolarDataProvider {
       expectedMonthlyGenerationKWh: Number(totals?.E_m ?? 0),
       expectedAnnualGenerationKWh: Number(totals?.E_y ?? 0),
       solarResource: resource,
-      source: { ...source(retrievedAt), calculationMethod: "PVGIS PVcalc fixed-system estimate" },
+      source: {
+        ...source(retrievedAt),
+        dataType: "estimated_generation" as const,
+        calculationMethod: "PVGIS PVcalc fixed-system estimate",
+      },
     };
   }
 }
