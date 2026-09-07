@@ -27,10 +27,13 @@ type PVGISResponse = {
 function source(retrievedAt: string) {
   return {
     provider: "pvgis",
+    providerLabel: "PVGIS",
     mode: "modelled" as const,
     quality: "provider-modelled" as const,
+    dataType: "modelled_resource" as const,
     retrievedAt,
     calculationMethod: "PVGIS PV performance model",
+    attribution: "PVGIS (European Commission Joint Research Centre) modelled solar resource.",
   };
 }
 
@@ -118,7 +121,11 @@ export class PVGISProvider implements SolarDataProvider {
       expectedMonthlyGenerationKWh: Number(totals?.E_m ?? 0),
       expectedAnnualGenerationKWh: Number(totals?.E_y ?? 0),
       solarResource: resource,
-      source: { ...source(retrievedAt), calculationMethod: "PVGIS PVcalc fixed-system estimate" },
+      source: {
+        ...source(retrievedAt),
+        dataType: "estimated_generation" as const,
+        calculationMethod: "PVGIS PVcalc fixed-system estimate",
+      },
     };
   }
 }
