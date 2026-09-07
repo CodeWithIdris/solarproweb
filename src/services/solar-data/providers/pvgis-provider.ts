@@ -27,10 +27,13 @@ type PVGISResponse = {
 function source(retrievedAt: string) {
   return {
     provider: "pvgis",
+    providerLabel: "PVGIS",
     mode: "modelled" as const,
     quality: "provider-modelled" as const,
+    dataType: "modelled_resource" as const,
     retrievedAt,
     calculationMethod: "PVGIS PV performance model",
+    attribution: "PVGIS (European Commission Joint Research Centre) modelled solar resource.",
   };
 }
 
