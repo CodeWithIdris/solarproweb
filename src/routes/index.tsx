@@ -326,49 +326,60 @@ function Hero({ onPlan }: { onPlan: () => void }) {
           </dl>
         </div>
 
-        {/* Example product surface: a live fleet panel, labelled as sample data */}
-        <div className="self-start border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <p className="label-technical">Fleet status — example data</p>
-            <p className="font-mono text-xs text-muted-foreground">14:32 UTC</p>
-          </div>
-          <ul className="divide-y divide-border">
-            {SAMPLE_SITES.map((site) => (
-              <li key={site.id} className="px-5 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <StatusDot status={site.status} />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{site.name}</p>
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {site.id} · {site.installedCapacityMwp.toFixed(1)} MWp
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono text-sm text-foreground">
-                      {formatNumber(site.expectedEnergyTodayKWh ?? 0)} kWh expected
-                    </p>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      Modelled PR {site.performanceRatio?.toFixed(1) ?? "—"}% · {site.dataMode}
-                      {site.openAlerts > 0 && (
-                        <span className="text-destructive">
-                          {" "}
-                          · {site.openAlerts} {site.openAlerts === 1 ? "alert" : "alerts"}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-border px-5 py-3">
-            <p className="font-mono text-xs text-muted-foreground">
-              5 sites · 64.9 MWp · sample fleet shown for illustration
-            </p>
-          </div>
-        </div>
+        <FleetPanel />
+      </div>
+    </section>
+  );
+}
+
+/** Demo locations with provider-retrieved estimates. Nothing here is telemetry. */
+function FleetPanel() {
+  const { rows, loading } = useFleetRows();
+  const totalCapacity = rows.reduce((sum, site) => sum + (site.installedCapacityMwp ?? 0), 0);
+  return (
+    <div className="self-start border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-5 py-3">
+        <p className="label-technical">Demo locations — modelled estimates</p>
+        <p className="font-mono text-xs text-muted-foreground">
+          {loading ? "Retrieving…" : "No telemetry connected"}
+        </p>
+      </div>
+      <ul className="divide-y divide-border">
+        {rows.map((site) => (
+          <li key={site.id} className="px-5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{site.name}</p>
+                <p className="font-mono text-xs text-muted-foreground">
+                  {site.id} · {site.installedCapacityMwp?.toFixed(1)} MWp
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-sm text-foreground">
+                  {loading
+                    ? "…"
+                    : site.expectedEnergyState === "available" &&
+                        site.expectedEnergyTodayKWh !== undefined
+                      ? `${formatNumber(Math.round(site.expectedEnergyTodayKWh))} kWh/day estimated`
+                      : "Estimate unavailable"}
+                </p>
+                <p className="font-mono text-xs text-muted-foreground">
+                  {loading
+                    ? "Retrieving provider data"
+                    : site.expectedEnergyState === "available"
+                      ? `${site.providerLabel ?? site.provider} · ${CLASSIFICATION_LABEL[site.expectedEnergyClassification]}`
+                      : AVAILABILITY_MESSAGE[site.expectedEnergyState]}
+                </p>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="border-t border-border px-5 py-3">
+        <p className="font-mono text-xs text-muted-foreground">
+          {rows.length} demo locations · {totalCapacity.toFixed(1)} MWp · modelled estimates only
+        </p>
+      </div>
       </div>
     </section>
   );
