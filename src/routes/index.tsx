@@ -42,105 +42,47 @@ export const Route = createFileRoute("/")({
 });
 
 /* ------------------------------------------------------------------ */
-/* Realistic sample data, structured around the Solar Pro data model.  */
-/* Clearly labelled as example data where it appears.                  */
+/* Demo locations are real places with real coordinates. Their solar    */
+/* figures are retrieved from providers through the Solar Pro service   */
+/* layer and carry their classification. No telemetry is invented.      */
 /* ------------------------------------------------------------------ */
 
-type SiteStatus = "operational" | "degraded" | "fault";
+function useFleetRows() {
+  const [rows, setRows] = useState<FleetRow[]>(() =>
+    DEMO_SITES.map((site) => ({
+      ...site,
+      expectedEnergyClassification: "unavailable" as const,
+      expectedEnergyState: "loading" as const,
+    })),
+  );
+  const [loading, setLoading] = useState(true);
 
-const SAMPLE_SITES: SolarSite[] = [
-  {
-    id: "NG-KD-01",
-    name: "Kaduna North",
-    region: "Kaduna, NG",
-    country: "Nigeria",
-    latitude: 10.52,
-    longitude: 7.44,
-    installedCapacityKw: 12400,
-    installedCapacityMwp: 12.4,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 68_410,
-    status: "operational",
-    performanceRatio: 81.2,
-    openAlerts: 0,
-  },
-  {
-    id: "NG-KD-02",
-    name: "Kaduna South",
-    region: "Kaduna, NG",
-    country: "Nigeria",
-    latitude: 10.48,
-    longitude: 7.4,
-    installedCapacityKw: 9800,
-    installedCapacityMwp: 9.8,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 51_930,
-    status: "operational",
-    performanceRatio: 79.6,
-    openAlerts: 1,
-  },
-  {
-    id: "NG-NS-01",
-    name: "Nasarawa East",
-    region: "Nasarawa, NG",
-    country: "Nigeria",
-    latitude: 8.54,
-    longitude: 8.16,
-    installedCapacityKw: 20000,
-    installedCapacityMwp: 20.0,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 96_120,
-    status: "degraded",
-    performanceRatio: 71.4,
-    openAlerts: 3,
-  },
-  {
-    id: "NG-KN-01",
-    name: "Kano River",
-    region: "Kano, NG",
-    country: "Nigeria",
-    latitude: 12.0,
-    longitude: 8.52,
-    installedCapacityKw: 7500,
-    installedCapacityMwp: 7.5,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 42_060,
-    status: "operational",
-    performanceRatio: 82.8,
-    openAlerts: 0,
-  },
-  {
-    id: "GH-AS-01",
-    name: "Ashanti Ridge",
-    region: "Ashanti, GH",
-    country: "Ghana",
-    latitude: 6.69,
-    longitude: -1.62,
-    installedCapacityKw: 15200,
-    installedCapacityMwp: 15.2,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 18_440,
-    status: "fault",
-    performanceRatio: 22.1,
-    openAlerts: 6,
-  },
-];
+  useEffect(() => {
+    let active = true;
+    void getFleetOverview()
+      .then((result) => {
+        if (active) setRows(result as FleetRow[]);
+      })
+      .catch(() => {
+        if (active)
+          setRows(
+            DEMO_SITES.map((site) => ({
+              ...site,
+              expectedEnergyClassification: "unavailable" as const,
+              expectedEnergyState: "provider_error" as const,
+            })),
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-const STATUS_META: Record<SiteStatus, { label: string; className: string }> = {
-  operational: { label: "Operational", className: "bg-status-ok" },
-  degraded: { label: "Degraded", className: "bg-status-warn" },
-  fault: { label: "Fault", className: "bg-status-fault" },
-};
+  return { rows, loading };
+}
 
 const CAPABILITIES: { term: string; detail: string }[] = [
   {
