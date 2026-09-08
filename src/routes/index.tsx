@@ -210,8 +210,11 @@ function Header({ onPlan }: { onPlan: () => void }) {
             Data model
           </a>
           <a href="#fleet" className="hover:text-foreground">
-            Fleet view
+            Locations
           </a>
+          <Link to="/explore" className="hover:text-foreground">
+            Explore solar
+          </Link>
         </nav>
         <a
           href="#demo"
