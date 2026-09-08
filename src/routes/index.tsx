@@ -449,32 +449,38 @@ function DataModel() {
 }
 
 function FleetView() {
-  const totalCapacity = SAMPLE_SITES.reduce((sum, s) => sum + s.installedCapacityMwp, 0);
-  const totalEnergy = SAMPLE_SITES.reduce((sum, s) => sum + (s.expectedEnergyTodayKWh ?? 0), 0);
-  const totalAlerts = SAMPLE_SITES.reduce((sum, s) => sum + s.openAlerts, 0);
+  const { rows, loading } = useFleetRows();
+  const totalCapacity = rows.reduce((sum, s) => sum + (s.installedCapacityMwp ?? 0), 0);
+  const estimated = rows.filter((row) => row.expectedEnergyState === "available");
+  const totalEstimated = estimated.reduce((sum, s) => sum + (s.expectedEnergyTodayKWh ?? 0), 0);
 
   return (
     <section id="fleet" className="border-b border-border">
       <div className="mx-auto max-w-6xl px-6 py-16 lg:py-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="label-technical">03 — Fleet view</p>
+            <p className="label-technical">03 — Location view</p>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
               One table per decision
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              The portfolio view is a working table: sortable, filterable, and exportable. Below is
-              a representative slice using sample data.
+              The portfolio view is a working table: sortable, filterable, and exportable. The
+              locations below are demonstration sites with real coordinates. Their solar figures are
+              retrieved from external providers and are modelled estimates, not measured production.
             </p>
           </div>
           <p className="font-mono text-xs text-muted-foreground">
-            Totals: {totalCapacity.toFixed(1)} MWp · {formatNumber(totalEnergy)} kWh today ·{" "}
-            {totalAlerts} open alerts
+            {rows.length} demo locations · {totalCapacity.toFixed(1)} MWp ·{" "}
+            {loading
+              ? "retrieving estimates…"
+              : estimated.length > 0
+                ? `${formatNumber(Math.round(totalEstimated))} kWh/day estimated`
+                : "estimates unavailable"}
           </p>
         </div>
 
         <div className="mt-8 overflow-x-auto border border-border bg-card">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead>
               <tr className="border-b border-border">
                 <th className="label-technical px-4 py-2.5 font-medium">Site</th>
@@ -483,46 +489,54 @@ function FleetView() {
                   Capacity (MWp)
                 </th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">
-                  Expected today (kWh)
+                  Estimated generation (kWh/day)
                 </th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">
-                  Modelled PR (%)
-                </th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">Open alerts</th>
-                <th className="label-technical px-4 py-2.5 font-medium">Status / data</th>
+                <th className="label-technical px-4 py-2.5 font-medium">Data type</th>
+                <th className="label-technical px-4 py-2.5 font-medium">Telemetry</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {SAMPLE_SITES.map((site) => (
+              {rows.map((site) => (
                 <tr key={site.id} className="hover:bg-muted/50">
                   <td className="px-4 py-3">
                     <span className="block font-medium text-foreground">{site.name}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{site.id}</span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{site.region}</td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.installedCapacityMwp.toFixed(1)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {formatNumber(site.expectedEnergyTodayKWh ?? 0)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.performanceRatio?.toFixed(1) ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">{site.openAlerts}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-2 text-sm text-foreground">
-                      <StatusDot status={site.status} />
-                      {STATUS_META[site.status].label} · {site.dataMode}
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {site.id} · Demo site
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {[site.region, site.country].filter(Boolean).join(", ")}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px]">
+                    {site.installedCapacityMwp?.toFixed(1) ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px]">
+                    {loading
+                      ? "…"
+                      : site.expectedEnergyState === "available" &&
+                          site.expectedEnergyTodayKWh !== undefined
+                        ? formatNumber(Math.round(site.expectedEnergyTodayKWh))
+                        : "Unavailable"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {loading
+                      ? "Retrieving…"
+                      : site.expectedEnergyState === "available"
+                        ? `${site.providerLabel ?? site.provider ?? "Provider"} · ${CLASSIFICATION_LABEL[site.expectedEnergyClassification]}`
+                        : AVAILABILITY_MESSAGE[site.expectedEnergyState]}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {TELEMETRY_STATUS_LABEL[site.telemetryStatus]}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="mt-3 font-mono text-xs text-muted-foreground">
-          Example data for illustration. A connected fleet reports at 1-minute resolution.
+        <p className="mt-3 max-w-3xl font-mono text-xs text-muted-foreground">
+          No monitoring provider is connected to these locations, so no measured output, performance
+          ratio, operational status or alerts are shown. Data availability varies by provider and
+          location.
         </p>
       </div>
     </section>
