@@ -380,8 +380,7 @@ function FleetPanel() {
           {rows.length} demo locations · {totalCapacity.toFixed(1)} MWp · modelled estimates only
         </p>
       </div>
-      </div>
-    </section>
+    </div>
   );
 }
 
