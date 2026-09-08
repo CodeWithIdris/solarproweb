@@ -227,9 +227,6 @@ function Header({ onPlan }: { onPlan: () => void }) {
   );
 }
 
-function StatusDot({ status }: { status: SiteStatus }) {
-  return <span className={`status-dot ${STATUS_META[status].className}`} aria-hidden />;
-}
 
 function Hero({ onPlan }: { onPlan: () => void }) {
   return (
