@@ -1,8 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { DemoRequestForm } from "@/components/DemoRequestForm";
 import { EnergyAssessment } from "@/components/EnergyAssessment";
-import type { SolarSite } from "@/services/solar-data/site-types";
+import { getFleetOverview } from "@/api/solar/server-functions";
+import { DEMO_SITES } from "@/services/solar-data/site-catalogue";
+import type { FleetRow } from "@/services/solar-data/insight-types";
+import {
+  AVAILABILITY_MESSAGE,
+  CLASSIFICATION_LABEL,
+  TELEMETRY_STATUS_LABEL,
+} from "@/services/solar-data/classification";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -42,105 +49,47 @@ export const Route = createFileRoute("/")({
 });
 
 /* ------------------------------------------------------------------ */
-/* Realistic sample data, structured around the Solar Pro data model.  */
-/* Clearly labelled as example data where it appears.                  */
+/* Demo locations are real places with real coordinates. Their solar    */
+/* figures are retrieved from providers through the Solar Pro service   */
+/* layer and carry their classification. No telemetry is invented.      */
 /* ------------------------------------------------------------------ */
 
-type SiteStatus = "operational" | "degraded" | "fault";
+function useFleetRows() {
+  const [rows, setRows] = useState<FleetRow[]>(() =>
+    DEMO_SITES.map((site) => ({
+      ...site,
+      expectedEnergyClassification: "unavailable" as const,
+      expectedEnergyState: "loading" as const,
+    })),
+  );
+  const [loading, setLoading] = useState(true);
 
-const SAMPLE_SITES: SolarSite[] = [
-  {
-    id: "NG-KD-01",
-    name: "Kaduna North",
-    region: "Kaduna, NG",
-    country: "Nigeria",
-    latitude: 10.52,
-    longitude: 7.44,
-    installedCapacityKw: 12400,
-    installedCapacityMwp: 12.4,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 68_410,
-    status: "operational",
-    performanceRatio: 81.2,
-    openAlerts: 0,
-  },
-  {
-    id: "NG-KD-02",
-    name: "Kaduna South",
-    region: "Kaduna, NG",
-    country: "Nigeria",
-    latitude: 10.48,
-    longitude: 7.4,
-    installedCapacityKw: 9800,
-    installedCapacityMwp: 9.8,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 51_930,
-    status: "operational",
-    performanceRatio: 79.6,
-    openAlerts: 1,
-  },
-  {
-    id: "NG-NS-01",
-    name: "Nasarawa East",
-    region: "Nasarawa, NG",
-    country: "Nigeria",
-    latitude: 8.54,
-    longitude: 8.16,
-    installedCapacityKw: 20000,
-    installedCapacityMwp: 20.0,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 96_120,
-    status: "degraded",
-    performanceRatio: 71.4,
-    openAlerts: 3,
-  },
-  {
-    id: "NG-KN-01",
-    name: "Kano River",
-    region: "Kano, NG",
-    country: "Nigeria",
-    latitude: 12.0,
-    longitude: 8.52,
-    installedCapacityKw: 7500,
-    installedCapacityMwp: 7.5,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 42_060,
-    status: "operational",
-    performanceRatio: 82.8,
-    openAlerts: 0,
-  },
-  {
-    id: "GH-AS-01",
-    name: "Ashanti Ridge",
-    region: "Ashanti, GH",
-    country: "Ghana",
-    latitude: 6.69,
-    longitude: -1.62,
-    installedCapacityKw: 15200,
-    installedCapacityMwp: 15.2,
-    dataMode: "demo",
-    dataProvider: "Solar Pro demo dataset",
-    lastUpdated: "2026-09-06T14:32:00Z",
-    expectedEnergyTodayKWh: 18_440,
-    status: "fault",
-    performanceRatio: 22.1,
-    openAlerts: 6,
-  },
-];
+  useEffect(() => {
+    let active = true;
+    void getFleetOverview()
+      .then((result) => {
+        if (active) setRows(result as FleetRow[]);
+      })
+      .catch(() => {
+        if (active)
+          setRows(
+            DEMO_SITES.map((site) => ({
+              ...site,
+              expectedEnergyClassification: "unavailable" as const,
+              expectedEnergyState: "provider_error" as const,
+            })),
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-const STATUS_META: Record<SiteStatus, { label: string; className: string }> = {
-  operational: { label: "Operational", className: "bg-status-ok" },
-  degraded: { label: "Degraded", className: "bg-status-warn" },
-  fault: { label: "Fault", className: "bg-status-fault" },
-};
+  return { rows, loading };
+}
 
 const CAPABILITIES: { term: string; detail: string }[] = [
   {
@@ -261,8 +210,11 @@ function Header({ onPlan }: { onPlan: () => void }) {
             Data model
           </a>
           <a href="#fleet" className="hover:text-foreground">
-            Fleet view
+            Locations
           </a>
+          <Link to="/explore" className="hover:text-foreground">
+            Explore solar
+          </Link>
         </nav>
         <a
           href="#demo"
@@ -275,9 +227,6 @@ function Header({ onPlan }: { onPlan: () => void }) {
   );
 }
 
-function StatusDot({ status }: { status: SiteStatus }) {
-  return <span className={`status-dot ${STATUS_META[status].className}`} aria-hidden />;
-}
 
 function Hero({ onPlan }: { onPlan: () => void }) {
   return (
@@ -326,51 +275,61 @@ function Hero({ onPlan }: { onPlan: () => void }) {
           </dl>
         </div>
 
-        {/* Example product surface: a live fleet panel, labelled as sample data */}
-        <div className="self-start border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <p className="label-technical">Fleet status — example data</p>
-            <p className="font-mono text-xs text-muted-foreground">14:32 UTC</p>
-          </div>
-          <ul className="divide-y divide-border">
-            {SAMPLE_SITES.map((site) => (
-              <li key={site.id} className="px-5 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <StatusDot status={site.status} />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{site.name}</p>
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {site.id} · {site.installedCapacityMwp.toFixed(1)} MWp
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono text-sm text-foreground">
-                      {formatNumber(site.expectedEnergyTodayKWh ?? 0)} kWh expected
-                    </p>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      Modelled PR {site.performanceRatio?.toFixed(1) ?? "—"}% · {site.dataMode}
-                      {site.openAlerts > 0 && (
-                        <span className="text-destructive">
-                          {" "}
-                          · {site.openAlerts} {site.openAlerts === 1 ? "alert" : "alerts"}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-border px-5 py-3">
-            <p className="font-mono text-xs text-muted-foreground">
-              5 sites · 64.9 MWp · sample fleet shown for illustration
-            </p>
-          </div>
-        </div>
+        <FleetPanel />
       </div>
     </section>
+  );
+}
+
+/** Demo locations with provider-retrieved estimates. Nothing here is telemetry. */
+function FleetPanel() {
+  const { rows, loading } = useFleetRows();
+  const totalCapacity = rows.reduce((sum, site) => sum + (site.installedCapacityMwp ?? 0), 0);
+  return (
+    <div className="self-start border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-5 py-3">
+        <p className="label-technical">Demo locations — modelled estimates</p>
+        <p className="font-mono text-xs text-muted-foreground">
+          {loading ? "Retrieving…" : "No telemetry connected"}
+        </p>
+      </div>
+      <ul className="divide-y divide-border">
+        {rows.map((site) => (
+          <li key={site.id} className="px-5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{site.name}</p>
+                <p className="font-mono text-xs text-muted-foreground">
+                  {site.id} · {site.installedCapacityMwp?.toFixed(1)} MWp
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-sm text-foreground">
+                  {loading
+                    ? "…"
+                    : site.expectedEnergyState === "available" &&
+                        site.expectedEnergyTodayKWh !== undefined
+                      ? `${formatNumber(Math.round(site.expectedEnergyTodayKWh))} kWh/day estimated`
+                      : "Estimate unavailable"}
+                </p>
+                <p className="font-mono text-xs text-muted-foreground">
+                  {loading
+                    ? "Retrieving provider data"
+                    : site.expectedEnergyState === "available"
+                      ? `${site.providerLabel ?? site.provider} · ${CLASSIFICATION_LABEL[site.expectedEnergyClassification]}`
+                      : AVAILABILITY_MESSAGE[site.expectedEnergyState]}
+                </p>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="border-t border-border px-5 py-3">
+        <p className="font-mono text-xs text-muted-foreground">
+          {rows.length} demo locations · {totalCapacity.toFixed(1)} MWp · modelled estimates only
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -449,32 +408,38 @@ function DataModel() {
 }
 
 function FleetView() {
-  const totalCapacity = SAMPLE_SITES.reduce((sum, s) => sum + s.installedCapacityMwp, 0);
-  const totalEnergy = SAMPLE_SITES.reduce((sum, s) => sum + (s.expectedEnergyTodayKWh ?? 0), 0);
-  const totalAlerts = SAMPLE_SITES.reduce((sum, s) => sum + s.openAlerts, 0);
+  const { rows, loading } = useFleetRows();
+  const totalCapacity = rows.reduce((sum, s) => sum + (s.installedCapacityMwp ?? 0), 0);
+  const estimated = rows.filter((row) => row.expectedEnergyState === "available");
+  const totalEstimated = estimated.reduce((sum, s) => sum + (s.expectedEnergyTodayKWh ?? 0), 0);
 
   return (
     <section id="fleet" className="border-b border-border">
       <div className="mx-auto max-w-6xl px-6 py-16 lg:py-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="label-technical">03 — Fleet view</p>
+            <p className="label-technical">03 — Location view</p>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
               One table per decision
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              The portfolio view is a working table: sortable, filterable, and exportable. Below is
-              a representative slice using sample data.
+              The portfolio view is a working table: sortable, filterable, and exportable. The
+              locations below are demonstration sites with real coordinates. Their solar figures are
+              retrieved from external providers and are modelled estimates, not measured production.
             </p>
           </div>
           <p className="font-mono text-xs text-muted-foreground">
-            Totals: {totalCapacity.toFixed(1)} MWp · {formatNumber(totalEnergy)} kWh today ·{" "}
-            {totalAlerts} open alerts
+            {rows.length} demo locations · {totalCapacity.toFixed(1)} MWp ·{" "}
+            {loading
+              ? "retrieving estimates…"
+              : estimated.length > 0
+                ? `${formatNumber(Math.round(totalEstimated))} kWh/day estimated`
+                : "estimates unavailable"}
           </p>
         </div>
 
         <div className="mt-8 overflow-x-auto border border-border bg-card">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead>
               <tr className="border-b border-border">
                 <th className="label-technical px-4 py-2.5 font-medium">Site</th>
@@ -483,46 +448,54 @@ function FleetView() {
                   Capacity (MWp)
                 </th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">
-                  Expected today (kWh)
+                  Estimated generation (kWh/day)
                 </th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">
-                  Modelled PR (%)
-                </th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">Open alerts</th>
-                <th className="label-technical px-4 py-2.5 font-medium">Status / data</th>
+                <th className="label-technical px-4 py-2.5 font-medium">Data type</th>
+                <th className="label-technical px-4 py-2.5 font-medium">Telemetry</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {SAMPLE_SITES.map((site) => (
+              {rows.map((site) => (
                 <tr key={site.id} className="hover:bg-muted/50">
                   <td className="px-4 py-3">
                     <span className="block font-medium text-foreground">{site.name}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{site.id}</span>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{site.region}</td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.installedCapacityMwp.toFixed(1)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {formatNumber(site.expectedEnergyTodayKWh ?? 0)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.performanceRatio?.toFixed(1) ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">{site.openAlerts}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-2 text-sm text-foreground">
-                      <StatusDot status={site.status} />
-                      {STATUS_META[site.status].label} · {site.dataMode}
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {site.id} · Demo site
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {[site.region, site.country].filter(Boolean).join(", ")}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px]">
+                    {site.installedCapacityMwp?.toFixed(1) ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px]">
+                    {loading
+                      ? "…"
+                      : site.expectedEnergyState === "available" &&
+                          site.expectedEnergyTodayKWh !== undefined
+                        ? formatNumber(Math.round(site.expectedEnergyTodayKWh))
+                        : "Unavailable"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {loading
+                      ? "Retrieving…"
+                      : site.expectedEnergyState === "available"
+                        ? `${site.providerLabel ?? site.provider ?? "Provider"} · ${CLASSIFICATION_LABEL[site.expectedEnergyClassification]}`
+                        : AVAILABILITY_MESSAGE[site.expectedEnergyState]}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {TELEMETRY_STATUS_LABEL[site.telemetryStatus]}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="mt-3 font-mono text-xs text-muted-foreground">
-          Example data for illustration. A connected fleet reports at 1-minute resolution.
+        <p className="mt-3 max-w-3xl font-mono text-xs text-muted-foreground">
+          No monitoring provider is connected to these locations, so no measured output, performance
+          ratio, operational status or alerts are shown. Data availability varies by provider and
+          location.
         </p>
       </div>
     </section>
