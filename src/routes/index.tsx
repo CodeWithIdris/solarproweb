@@ -1,8 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { DemoRequestForm } from "@/components/DemoRequestForm";
 import { EnergyAssessment } from "@/components/EnergyAssessment";
-import type { SolarSite } from "@/services/solar-data/site-types";
+import { getFleetOverview } from "@/api/solar/server-functions";
+import { DEMO_SITES } from "@/services/solar-data/site-catalogue";
+import type { FleetRow } from "@/services/solar-data/insight-types";
+import {
+  AVAILABILITY_MESSAGE,
+  CLASSIFICATION_LABEL,
+  TELEMETRY_STATUS_LABEL,
+} from "@/services/solar-data/classification";
 
 export const Route = createFileRoute("/")({
   component: Index,
