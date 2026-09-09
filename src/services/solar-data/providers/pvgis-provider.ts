@@ -27,6 +27,8 @@ type PVGISResponse = {
 function source(retrievedAt: string) {
   return {
     provider: "pvgis",
+    dataset: "PVGIS PVcalc",
+    dataType: "Modelled solar resource",
     mode: "modelled" as const,
     quality: "provider-modelled" as const,
     retrievedAt,

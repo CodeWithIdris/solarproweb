@@ -2,6 +2,31 @@
 @source "../src";
 @import "tw-animate-css";
 
+.solar-map-marker {
+  display: grid;
+  height: 28px;
+  width: 28px;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 9999px;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+}
+.solar-map-marker--demo {
+  background: #475569;
+}
+.solar-map-marker--connected {
+  background: #047857;
+}
+.solar-map-marker--project {
+  background: #1d4ed8;
+}
+.solar-map-marker--selected {
+  background: #c2410c;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

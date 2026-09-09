@@ -13,3 +13,7 @@ export const getModelledPVPerformance = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     return solarDataService.getPVPerformance(data);
   });
+
+export const getMultiProviderSolarResource = createServerFn({ method: "POST" })
+  .validator((data: PVGISRequest) => data)
+  .handler(async ({ data }) => solarDataService.getMultiProviderSolarResource(data));

@@ -31,8 +31,8 @@ function ProjectDetail() {
       </DashboardShell>
     );
   const summary = projectSummary(project);
-  const latitude = project.assessment_inputs["latitude"];
-  const longitude = project.assessment_inputs["longitude"];
+  const latitude = project.latitude ?? project.assessment_inputs["latitude"];
+  const longitude = project.longitude ?? project.assessment_inputs["longitude"];
   const recommendation = project.calculation_result.recommendations.recommended;
   const configuration = project.system_configuration.configurations.find(
     (item) => item.recommendationTier === (project.selected_recommendation_tier ?? "Recommended"),
@@ -44,12 +44,21 @@ function ProjectDetail() {
           <p className="label-technical">Solar project / {project.status}</p>
           <h2 className="mt-2 text-2xl font-semibold">{project.name}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {project.property_type} · {project.location || "Location not set"}
+            {project.property_type} ·{" "}
+            {project.location_name ?? project.location ?? "Location not set"}
           </p>
         </div>
         <Link to="/dashboard/projects" className="text-sm underline underline-offset-4">
           Back to projects
         </Link>
+        {typeof latitude === "number" && typeof longitude === "number" && (
+          <a
+            href={`/?location=${encodeURIComponent(project.location_name ?? project.location ?? "Project location")}&lat=${latitude}&lon=${longitude}${project.country ? `&country=${encodeURIComponent(project.country)}` : ""}${project.region ? `&region=${encodeURIComponent(project.region)}` : ""}&source=project`}
+            className="text-sm underline underline-offset-4"
+          >
+            Start assessment
+          </a>
+        )}
       </div>
       <section className="mt-8 grid gap-6 border-b border-border pb-8 sm:grid-cols-2 lg:grid-cols-4">
         <div>
@@ -75,6 +84,19 @@ function ProjectDetail() {
           </p>
         </div>
       </section>
+      {typeof latitude === "number" && typeof longitude === "number" && (
+        <section className="mt-8 border-y border-border py-5">
+          <p className="label-technical">Project geography</p>
+          <p className="mt-2 text-sm">
+            {project.location_name ?? project.location}{" "}
+            {project.region ? `· ${project.region}` : ""}{" "}
+            {project.country ? `· ${project.country}` : ""}
+          </p>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
+            {latitude.toFixed(4)}, {longitude.toFixed(4)}
+          </p>
+        </section>
+      )}
       <section className="mt-8 grid gap-8 lg:grid-cols-2">
         <div>
           <p className="label-technical">Recommended solar system</p>

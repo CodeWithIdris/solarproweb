@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DemoRequestForm } from "@/components/DemoRequestForm";
 import { EnergyAssessment } from "@/components/EnergyAssessment";
 import type { SolarSite } from "@/services/solar-data/site-types";
@@ -250,6 +250,9 @@ function Header({ onPlan }: { onPlan: () => void }) {
           <a href="#fleet" className="hover:text-foreground">
             Fleet view
           </a>
+          <a href="/explore" className="hover:text-foreground">
+            Explore Solar
+          </a>
         </nav>
         <a
           href="#demo"
@@ -316,8 +319,7 @@ function Hero({ onPlan }: { onPlan: () => void }) {
         {/* Example product surface: a live fleet panel, labelled as sample data */}
         <div className="self-start border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <p className="label-technical">Fleet status — example data</p>
-            <p className="font-mono text-xs text-muted-foreground">14:32 UTC</p>
+            <p className="label-technical">Demo sites — not connected telemetry</p>
           </div>
           <ul className="divide-y divide-border">
             {SAMPLE_SITES.map((site) => (
@@ -357,7 +359,7 @@ function Hero({ onPlan }: { onPlan: () => void }) {
           </ul>
           <div className="border-t border-border px-5 py-3">
             <p className="font-mono text-xs text-muted-foreground">
-              5 sites · 64.9 MWp · sample fleet shown for illustration
+              5 demo sites · 64.9 MWp · capacities shown for illustration · no connected telemetry
             </p>
           </div>
         </div>
@@ -450,13 +452,13 @@ function FleetView() {
       <div className="mx-auto max-w-6xl px-6 py-16 lg:py-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="label-technical">03 — Fleet view</p>
+            <p className="label-technical">03 — Demo site view</p>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
-              One table per decision
+              Example sites, clearly classified
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              The portfolio view is a working table: sortable, filterable, and exportable. Below is
-              a representative slice using sample data.
+              These example locations show the Solar Pro site model. They are not connected plants,
+              and no production, alerts, or operational state is implied.
             </p>
           </div>
           <p className="font-mono text-xs text-muted-foreground">
@@ -519,7 +521,8 @@ function FleetView() {
           </table>
         </div>
         <p className="mt-3 font-mono text-xs text-muted-foreground">
-          Example data for illustration. A connected fleet reports at 1-minute resolution.
+          Demo sites for illustration. No connected telemetry, production figures, or alerts are
+          shown.
         </p>
       </div>
     </section>
@@ -575,9 +578,48 @@ function Footer() {
 
 function Index() {
   const [showAssessment, setShowAssessment] = useState(false);
+  const [mapLocation, setMapLocation] = useState<string | undefined>();
+  const [mapGeography, setMapGeography] = useState<{
+    locationName: string;
+    country?: string;
+    region?: string;
+    latitude: number;
+    longitude: number;
+    source: "assessment" | "project";
+  }>();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const latitude = params.get("lat");
+    const longitude = params.get("lon");
+    if (
+      !latitude ||
+      !longitude ||
+      !Number.isFinite(Number(latitude)) ||
+      !Number.isFinite(Number(longitude))
+    )
+      return;
+    const name = params.get("location") ?? "Selected map location";
+    setMapLocation(`${name} (${latitude}, ${longitude})`);
+    setMapGeography({
+      locationName: name,
+      ...(params.get("country") ? { country: params.get("country")! } : {}),
+      ...(params.get("region") ? { region: params.get("region")! } : {}),
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      source: params.get("source") === "project" ? "project" : "assessment",
+    });
+    setShowAssessment(true);
+  }, []);
 
   if (showAssessment) {
-    return <EnergyAssessment onExit={() => setShowAssessment(false)} />;
+    return (
+      <EnergyAssessment
+        onExit={() => setShowAssessment(false)}
+        {...(mapLocation ? { initialLocation: mapLocation } : {})}
+        {...(mapGeography ? { initialGeography: mapGeography } : {})}
+      />
+    );
   }
 
   return (

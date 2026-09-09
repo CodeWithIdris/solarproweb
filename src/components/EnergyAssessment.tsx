@@ -35,6 +35,11 @@ type Assessment = {
   selectedRecommendationTier?: "Essential" | "Recommended" | "Extended";
   selectedConfigurationId?: string;
   configurationNotes?: string;
+  locationName?: string | undefined;
+  region?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
+  locationSource?: "assessment" | undefined | "project";
 };
 
 const inputClass =
@@ -266,6 +271,33 @@ function PropertyStep({
           assumptions in a later version.
         </p>
         <div className="mt-8 grid gap-5 sm:grid-cols-2">
+          {typeof assessment.latitude === "number" && typeof assessment.longitude === "number" && (
+            <div className="sm:col-span-2 border-l-2 border-solar bg-muted/30 p-4 text-sm">
+              <p className="label-technical">Assessment location</p>
+              <p className="mt-1 font-medium">{assessment.locationName ?? assessment.location}</p>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
+                {assessment.latitude.toFixed(4)}, {assessment.longitude.toFixed(4)} ·{" "}
+                {assessment.locationSource === "project"
+                  ? "Project geography"
+                  : "Selected location"}
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  update({
+                    latitude: undefined,
+                    longitude: undefined,
+                    locationName: undefined,
+                    region: undefined,
+                    locationSource: "assessment",
+                  })
+                }
+                className="mt-3 text-xs underline underline-offset-4"
+              >
+                Change location
+              </button>
+            </div>
+          )}
           <Field label="Assessment name">
             <input
               className={inputClass}
@@ -761,7 +793,10 @@ function RecommendationStep({
             calculator answer.
           </p>
         </div>
-        <button className={`${buttonClass} bg-primary text-primary-foreground`} onClick={() => void onSave()}>
+        <button
+          className={`${buttonClass} bg-primary text-primary-foreground`}
+          onClick={() => void onSave()}
+        >
           Save solar project
         </button>
       </div>
@@ -1074,9 +1109,38 @@ function RecommendationStep({
   );
 }
 
-export function EnergyAssessment({ onExit }: { onExit: () => void }) {
+export function EnergyAssessment({
+  onExit,
+  initialLocation,
+  initialGeography,
+}: {
+  onExit: () => void;
+  initialLocation?: string;
+  initialGeography?: {
+    locationName: string;
+    country?: string;
+    region?: string;
+    latitude: number;
+    longitude: number;
+    source: "assessment" | "project";
+  };
+}) {
   const [step, setStep] = useState(0);
-  const [assessment, setAssessment] = useState<Assessment>(initialAssessment);
+  const [assessment, setAssessment] = useState<Assessment>(() => ({
+    ...initialAssessment,
+    ...(initialLocation ? { location: initialLocation } : {}),
+    ...(initialGeography
+      ? {
+          location: initialGeography.locationName,
+          locationName: initialGeography.locationName,
+          country: initialGeography.country ?? initialAssessment.country,
+          region: initialGeography.region,
+          latitude: initialGeography.latitude,
+          longitude: initialGeography.longitude,
+          locationSource: initialGeography.source,
+        }
+      : {}),
+  }));
   const [saved, setSaved] = useState<Assessment[]>([]);
   const result = useMemo(() => calculateEnergyAssessment(assessment), [assessment]);
   const configurations = useMemo(
@@ -1108,7 +1172,10 @@ export function EnergyAssessment({ onExit }: { onExit: () => void }) {
     localStorage.setItem("solar-pro-assessments", JSON.stringify(next));
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
-      localStorage.setItem("solar-pro-pending-project", JSON.stringify({ assessment, result, configurations }));
+      localStorage.setItem(
+        "solar-pro-pending-project",
+        JSON.stringify({ assessment, result, configurations }),
+      );
       window.location.href = "/login?returnTo=/dashboard";
       return;
     }

@@ -11,6 +11,11 @@ export interface SolarProjectRecord {
   status: ProjectStatus;
   property_type: string;
   location: string | null;
+  location_name: string | null;
+  country: string | null;
+  region: string | null;
+  latitude: number | null;
+  longitude: number | null;
   grid_availability: string | null;
   assessment_inputs: Record<string, unknown>;
   calculation_result: CalculationResult;

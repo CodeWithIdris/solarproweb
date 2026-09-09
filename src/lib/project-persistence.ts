@@ -5,6 +5,7 @@ import type { ConfigurationResult } from "./system-configuration";
 export interface AssessmentProjectInput {
   name: string;
   propertyType: string;
+  country: string;
   location: string;
   systemType: string;
   appliances: unknown[];
@@ -14,6 +15,10 @@ export interface AssessmentProjectInput {
   selectedRecommendationTier?: string;
   selectedConfigurationId?: string;
   configurationNotes?: string;
+  locationName?: string | undefined;
+  region?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
 }
 
 export async function saveAssessmentProject(
@@ -39,7 +44,12 @@ export async function saveAssessmentProject(
       name: assessment.name || "Untitled solar project",
       status: "saved",
       property_type: assessment.propertyType,
-      location: assessment.location || null,
+      location: (assessment.locationName ?? assessment.location) || null,
+      location_name: (assessment.locationName ?? assessment.location) || null,
+      country: assessment.country || null,
+      region: assessment.region ?? null,
+      latitude: assessment.latitude ?? null,
+      longitude: assessment.longitude ?? null,
       grid_availability: assessment.systemType,
       assessment_inputs: assessment,
       calculation_result: result,

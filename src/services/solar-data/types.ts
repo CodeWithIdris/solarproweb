@@ -1,6 +1,12 @@
-export type SolarDataMode = "demo" | "modelled" | "historical" | "connected" | "live";
+export type SolarDataMode =
+  "demo" | "modelled" | "historical" | "environmental" | "connected" | "live";
 export type SolarDataQuality =
-  "provider-modelled" | "provider-historical" | "connected-measured" | "demo";
+  | "provider-modelled"
+  | "provider-historical"
+  | "satellite-reanalysis"
+  | "connected-measured"
+  | "demo";
+export type ProviderStatus = "available" | "partial" | "unavailable" | "error" | "not_connected";
 
 export interface GeoLocation {
   latitude: number;
@@ -9,6 +15,8 @@ export interface GeoLocation {
 
 export interface SolarDataSource {
   provider: string;
+  dataset: string;
+  dataType: string;
   mode: SolarDataMode;
   quality: SolarDataQuality;
   retrievedAt: string;
@@ -23,6 +31,20 @@ export interface SolarResourceData {
   peakSunHours: number;
   monthlyIrradianceKWhM2: Array<{ month: number; value: number }>;
   source: SolarDataSource;
+}
+
+export interface ProviderResourceResult {
+  provider: string;
+  status: ProviderStatus;
+  dataType: string;
+  dataset: string;
+  resource?: SolarResourceData;
+  message?: string;
+}
+
+export interface MultiProviderSolarResource {
+  location: GeoLocation;
+  providers: ProviderResourceResult[];
 }
 
 export interface MeteorologicalData {
@@ -83,6 +105,17 @@ export const PVGIS_DATA_POLICY: ProviderDataPolicy = {
   apiExposureAllowed: false,
   requiredAttribution:
     "PVGIS data is used for Solar Pro modelled planning estimates; verify applicable provider terms before redistribution.",
+};
+
+export const NASA_POWER_DATA_POLICY: ProviderDataPolicy = {
+  provider: "nasa-power",
+  redistributionAllowed: false,
+  attributionRequired: true,
+  commercialUseAllowed: false,
+  cacheAllowed: true,
+  maximumCacheDurationSeconds: 86_400,
+  apiExposureAllowed: false,
+  requiredAttribution: "NASA POWER satellite/reanalysis environmental data.",
 };
 
 export function validateLocation(location: GeoLocation): void {
