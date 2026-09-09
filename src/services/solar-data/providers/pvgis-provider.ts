@@ -18,11 +18,20 @@ type PVGISMonthly = {
 };
 type PVGISResponse = {
   outputs?: {
-    monthly?: PVGISMonthly[];
+    /** v5.3 returns { fixed: [...] }; earlier shapes return a plain array. */
+    monthly?: PVGISMonthly[] | { fixed?: PVGISMonthly[] };
     totals?: { fixed?: { E_y?: number; E_m?: number; E_d?: number } };
   };
   inputs?: { location?: { latitude?: number; longitude?: number } };
 };
+
+const DAYS_PER_MONTH = 30.4375;
+
+function monthlyRows(payload: PVGISResponse): PVGISMonthly[] {
+  const monthly = payload.outputs?.monthly;
+  if (Array.isArray(monthly)) return monthly;
+  return monthly?.fixed ?? [];
+}
 
 function source(retrievedAt: string) {
   return {
