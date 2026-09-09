@@ -18,11 +18,20 @@ type PVGISMonthly = {
 };
 type PVGISResponse = {
   outputs?: {
-    monthly?: PVGISMonthly[];
+    /** v5.3 returns { fixed: [...] }; earlier shapes return a plain array. */
+    monthly?: PVGISMonthly[] | { fixed?: PVGISMonthly[] };
     totals?: { fixed?: { E_y?: number; E_m?: number; E_d?: number } };
   };
   inputs?: { location?: { latitude?: number; longitude?: number } };
 };
+
+const DAYS_PER_MONTH = 30.4375;
+
+function monthlyRows(payload: PVGISResponse): PVGISMonthly[] {
+  const monthly = payload.outputs?.monthly;
+  if (Array.isArray(monthly)) return monthly;
+  return monthly?.fixed ?? [];
+}
 
 function source(retrievedAt: string) {
   return {
@@ -62,7 +71,7 @@ export class PVGISProvider implements SolarDataProvider {
     if (!response.ok)
       throw new Error(response.status === 429 ? "PROVIDER_RATE_LIMITED" : "PROVIDER_UNAVAILABLE");
     const payload = (await response.json()) as PVGISResponse;
-    if (!payload.outputs?.monthly?.length) throw new Error("MALFORMED_PROVIDER_RESPONSE");
+    if (monthlyRows(payload).length === 0) throw new Error("MALFORMED_PROVIDER_RESPONSE");
     return payload;
   }
 
@@ -77,8 +86,8 @@ export class PVGISProvider implements SolarDataProvider {
     payload: PVGISResponse,
     retrievedAt: string,
   ): SolarResourceData {
-    const monthly = payload.outputs?.monthly ?? [];
-    const values = monthly.map((item) => (Number(item["H(i)_d"] ?? 0) * 30.4375) / 1000);
+    const monthly = monthlyRows(payload);
+    const values = monthly.map((item) => Number(item["H(i)_d"] ?? 0) * DAYS_PER_MONTH);
     const annual = values.reduce((sum, value) => sum + value, 0);
     return {
       location: request.location,
@@ -95,7 +104,7 @@ export class PVGISProvider implements SolarDataProvider {
   async getMeteorologicalData(request: PVGISRequest): Promise<MeteorologicalData> {
     const retrievedAt = new Date().toISOString();
     const payload = await this.request(request);
-    const monthly = payload.outputs?.monthly ?? [];
+    const monthly = monthlyRows(payload);
     return {
       location: request.location,
       monthly: monthly.map((item) => ({
