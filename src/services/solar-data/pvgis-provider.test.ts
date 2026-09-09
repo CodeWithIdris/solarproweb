@@ -25,7 +25,7 @@ test("normalizes PVGIS performance data into Solar Pro provenance fields", async
   assert.equal(result.source.provider, "pvgis");
   assert.equal(result.source.mode, "modelled");
   assert.equal(result.expectedDailyGenerationKWh, 10);
-  assert.equal(result.solarResource.annualIrradianceKWhM2, 0.1521875);
+  assert.equal(result.solarResource.annualIrradianceKWhM2, 152.1875);
   assert.equal(calls, 1);
 });
 
