@@ -1,136 +1,105 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  CLASSIFICATION_LABEL,
-  isCacheableAsResource,
-  isTelemetry,
-} from "./classification.ts";
+import assert from "node:assert/strict";
+import test from "node:test";
+import { CLASSIFICATION_LABEL, isCacheableAsResource, isTelemetry } from "./classification.ts";
 import { ProviderPolicy, createDefaultRegistrations } from "./provider-policy.ts";
 import { FleetService } from "./fleet-service.ts";
 import { DEMO_SITES } from "./site-catalogue.ts";
-import { parseCoordinateQuery } from "@/services/geocoding/geocoding-service";
+import { parseCoordinateQuery } from "../geocoding/geocoding-service.ts";
 
-describe("data classification", () => {
-  it("labels modelled and estimated data honestly", () => {
-    expect(CLASSIFICATION_LABEL.modelled_resource).toMatch(/Modelled/i);
-    expect(CLASSIFICATION_LABEL.estimated_generation).toMatch(/Estimated/i);
-    expect(CLASSIFICATION_LABEL.satellite_reanalysis).toMatch(/reanalysis/i);
-  });
-
-  it("treats only telemetry classifications as telemetry", () => {
-    expect(isTelemetry("live_telemetry")).toBe(true);
-    expect(isTelemetry("historical_telemetry")).toBe(true);
-    expect(isTelemetry("modelled_resource")).toBe(false);
-    expect(isTelemetry("estimated_generation")).toBe(false);
-    expect(isTelemetry("demo")).toBe(false);
-  });
-
-  it("does not cache unavailable data as resource data", () => {
-    expect(isCacheableAsResource("modelled_resource")).toBe(true);
-    expect(isCacheableAsResource("unavailable")).toBe(false);
-  });
+test("classification labels stay honest about what the data is", () => {
+  assert.match(CLASSIFICATION_LABEL.modelled_resource, /modelled/i);
+  assert.match(CLASSIFICATION_LABEL.estimated_generation, /estimated/i);
+  assert.match(CLASSIFICATION_LABEL.satellite_reanalysis, /reanalysis/i);
+  assert.equal(isTelemetry("live_telemetry"), true);
+  assert.equal(isTelemetry("historical_telemetry"), true);
+  assert.equal(isTelemetry("modelled_resource"), false);
+  assert.equal(isTelemetry("estimated_generation"), false);
+  assert.equal(isTelemetry("demo"), false);
+  assert.equal(isCacheableAsResource("modelled_resource"), true);
+  assert.equal(isCacheableAsResource("unavailable"), false);
 });
 
-describe("provider policy", () => {
+test("provider policy selects by coverage, dataset and credentials", () => {
   const policy = new ProviderPolicy(createDefaultRegistrations());
-
-  it("prefers PVGIS for modelled resource inside its coverage", () => {
-    const candidates = policy.select({
-      location: { latitude: 10.5, longitude: 7.4 },
-      dataset: "resource",
-    });
-    expect(candidates[0]?.id).toBe("pvgis");
+  const inCoverage = policy.select({
+    location: { latitude: 10.5, longitude: 7.4 },
+    dataset: "resource",
   });
+  assert.equal(inCoverage[0]?.id, "pvgis");
 
-  it("falls back to NASA POWER outside PVGIS coverage", () => {
-    const candidates = policy.select({
-      location: { latitude: -80, longitude: 20 },
-      dataset: "resource",
-    });
-    expect(candidates.map((entry) => entry.id)).not.toContain("pvgis");
-    expect(candidates.map((entry) => entry.id)).toContain("nasa-power");
+  const outsideCoverage = policy.select({
+    location: { latitude: -80, longitude: 20 },
+    dataset: "resource",
   });
+  assert.ok(!outsideCoverage.some((entry) => entry.id === "pvgis"));
+  assert.ok(outsideCoverage.some((entry) => entry.id === "nasa-power"));
 
-  it("never selects a credentialled provider without a connection", () => {
-    const candidates = policy.select({
-      location: { latitude: 10.5, longitude: 7.4 },
-      dataset: "telemetry",
-    });
-    expect(candidates).toHaveLength(0);
+  const telemetry = policy.select({
+    location: { latitude: 10.5, longitude: 7.4 },
+    dataset: "telemetry",
   });
+  assert.equal(telemetry.length, 0);
 });
 
-describe("demo sites", () => {
-  it("carry real coordinates and never claim telemetry or alerts", () => {
-    for (const site of DEMO_SITES) {
-      expect(Math.abs(site.latitude)).toBeLessThanOrEqual(90);
-      expect(Math.abs(site.longitude)).toBeLessThanOrEqual(180);
-      expect(site.siteType).toBe("demo");
-      expect(site.telemetryStatus).toBe("not_connected");
-      expect(site.status).toBe("not_connected");
-      expect(site).not.toHaveProperty("openAlerts");
-      expect(site).not.toHaveProperty("performanceRatio");
-    }
-  });
+test("demo sites use real coordinates and claim no telemetry, status or alerts", () => {
+  for (const site of DEMO_SITES) {
+    assert.ok(Math.abs(site.latitude) <= 90);
+    assert.ok(Math.abs(site.longitude) <= 180);
+    assert.equal(site.siteType, "demo");
+    assert.equal(site.telemetryStatus, "not_connected");
+    assert.equal(site.status, "not_connected");
+    assert.equal("openAlerts" in site, false);
+    assert.equal("performanceRatio" in site, false);
+  }
 });
 
-describe("fleet rows", () => {
-  it("reports unavailable rather than inventing generation when providers fail", async () => {
-    const insights = {
-      getInsight: vi.fn().mockResolvedValue({
-        place: { name: "x", latitude: 1, longitude: 1 },
-        telemetry: { status: "not_connected", state: "not_connected", message: "" },
-        providerLog: [{ provider: "pvgis", dataset: "performance", outcome: "error" }],
-        retrievedAt: new Date().toISOString(),
-      }),
-    };
-    const service = new FleetService(insights as never);
-    const rows = await service.getRows(DEMO_SITES.slice(0, 1));
-    expect(rows[0]?.expectedEnergyTodayKWh).toBeUndefined();
-    expect(rows[0]?.expectedEnergyClassification).toBe("unavailable");
-    expect(rows[0]?.expectedEnergyState).toBe("provider_error");
-  });
+test("fleet rows report unavailable instead of inventing generation", async () => {
+  const service = new FleetService({
+    getInsight: async () => ({
+      place: { name: "x", latitude: 1, longitude: 1 },
+      telemetry: { status: "not_connected", state: "not_connected", message: "" },
+      providerLog: [{ provider: "pvgis", dataset: "performance", outcome: "error" }],
+      retrievedAt: new Date().toISOString(),
+    }),
+  } as never);
+  const rows = await service.getRows(DEMO_SITES.slice(0, 1));
+  assert.equal(rows[0]?.expectedEnergyTodayKWh, undefined);
+  assert.equal(rows[0]?.expectedEnergyClassification, "unavailable");
+  assert.equal(rows[0]?.expectedEnergyState, "provider_error");
+});
 
-  it("passes through provider classification when data is returned", async () => {
-    const insights = {
-      getInsight: vi.fn().mockResolvedValue({
-        place: { name: "x", latitude: 1, longitude: 1 },
-        performance: {
-          state: "available",
-          data: {
-            expectedDailyGenerationKWh: 42,
-            expectedMonthlyGenerationKWh: 1200,
-            expectedAnnualGenerationKWh: 15000,
-            installedCapacityKW: 10,
-            source: {
-              provider: "pvgis",
-              providerLabel: "PVGIS",
-              dataType: "estimated_generation",
-              retrievedAt: new Date().toISOString(),
-            },
+test("fleet rows carry the provider classification when data is returned", async () => {
+  const service = new FleetService({
+    getInsight: async () => ({
+      place: { name: "x", latitude: 1, longitude: 1 },
+      performance: {
+        state: "available",
+        data: {
+          expectedDailyGenerationKWh: 42,
+          expectedMonthlyGenerationKWh: 1200,
+          expectedAnnualGenerationKWh: 15000,
+          installedCapacityKW: 10,
+          source: {
+            provider: "pvgis",
+            providerLabel: "PVGIS",
+            dataType: "estimated_generation",
+            retrievedAt: new Date().toISOString(),
           },
         },
-        telemetry: { status: "not_connected", state: "not_connected", message: "" },
-        providerLog: [],
-        retrievedAt: new Date().toISOString(),
-      }),
-    };
-    const rows = await new FleetService(insights as never).getRows(DEMO_SITES.slice(0, 1));
-    expect(rows[0]?.expectedEnergyTodayKWh).toBe(42);
-    expect(rows[0]?.expectedEnergyClassification).toBe("estimated_generation");
-    expect(rows[0]?.providerLabel).toBe("PVGIS");
-  });
+      },
+      telemetry: { status: "not_connected", state: "not_connected", message: "" },
+      providerLog: [],
+      retrievedAt: new Date().toISOString(),
+    }),
+  } as never);
+  const rows = await service.getRows(DEMO_SITES.slice(0, 1));
+  assert.equal(rows[0]?.expectedEnergyTodayKWh, 42);
+  assert.equal(rows[0]?.expectedEnergyClassification, "estimated_generation");
+  assert.equal(rows[0]?.providerLabel, "PVGIS");
 });
 
-describe("coordinate search", () => {
-  it("parses coordinate input", () => {
-    expect(parseCoordinateQuery("40.7128, -74.0060")).toMatchObject({
-      latitude: 40.7128,
-      longitude: -74.006,
-    });
-  });
-
-  it("rejects out-of-range and non-coordinate input", () => {
-    expect(parseCoordinateQuery("120, 20")).toBeUndefined();
-    expect(parseCoordinateQuery("Kaduna")).toBeUndefined();
-  });
+test("coordinate search never invents coordinates", () => {
+  assert.deepEqual(parseCoordinateQuery("40.7128, -74.0060")?.latitude, 40.7128);
+  assert.equal(parseCoordinateQuery("120, 20"), undefined);
+  assert.equal(parseCoordinateQuery("Kaduna"), undefined);
 });
