@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 export type SolarDataMode =
   "demo" | "modelled" | "historical" | "environmental" | "connected" | "live";
 export type SolarDataQuality =
@@ -8,54 +7,18 @@ export type SolarDataQuality =
   | "connected-measured"
   | "demo";
 export type ProviderStatus = "available" | "partial" | "unavailable" | "error" | "not_connected";
-=======
-import type { DataClassification } from "./classification.ts";
-
-export type { DataClassification };
-
-export type SolarDataMode =
-  | "demo"
-  | "modelled"
-  | "historical"
-  | "connected"
-  | "live"
-  | "satellite_reanalysis"
-  | "unavailable";
-export type SolarDataQuality =
-  | "provider-modelled"
-  | "provider-historical"
-  | "provider-reanalysis"
-  | "connected-measured"
-  | "demo";
->>>>>>> 98fc0f25cf8d022ec34cc1b6c041037275b39e4d
 
 export interface GeoLocation {
   latitude: number;
   longitude: number;
 }
 
-/** A resolved real-world place. Never fabricated; always geocoder-backed. */
-export interface ResolvedPlace extends GeoLocation {
-  name: string;
-  country?: string;
-  countryCode?: string;
-  region?: string;
-  locality?: string;
-}
-
 export interface SolarDataSource {
   provider: string;
-<<<<<<< HEAD
   dataset: string;
   dataType: string;
-=======
-  /** Human-facing provider name, e.g. "PVGIS", "NASA POWER". */
-  providerLabel?: string;
->>>>>>> 98fc0f25cf8d022ec34cc1b6c041037275b39e4d
   mode: SolarDataMode;
   quality: SolarDataQuality;
-  /** Canonical Solar Pro classification carried through the data model. */
-  dataType: DataClassification;
   retrievedAt: string;
   dataPeriod?: { start: string; end: string };
   calculationMethod?: string;
