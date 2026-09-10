@@ -105,3 +105,20 @@ export const solarDataService = new SolarDataService();
 export function clearSolarDataCache() {
   cache.clear();
 }
+
+/**
+ * Shared cache used by every Solar Pro data path. Keys must include the
+ * provider, dataset and normalized request parameters so that results from
+ * different providers are never conflated.
+ */
+export async function cachedValue<T>(key: string, ttlMs: number, load: () => Promise<T>) {
+  const existing = cache.get(key);
+  if (existing && existing.expiresAt > Date.now()) return existing.value as T;
+  const value = await load();
+  if (ttlMs > 0) cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+  return value;
+}
+
+export function buildCacheKey(parts: Array<string | number | undefined>) {
+  return parts.map((part) => (part === undefined ? "" : String(part))).join(":");
+}

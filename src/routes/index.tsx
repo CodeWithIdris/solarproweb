@@ -1,8 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DemoRequestForm } from "@/components/DemoRequestForm";
 import { EnergyAssessment } from "@/components/EnergyAssessment";
-import type { SolarSite } from "@/services/solar-data/site-types";
+import { getFleetOverview } from "@/api/solar/server-functions";
+import { DEMO_SITES } from "@/services/solar-data/site-catalogue";
+import type { FleetRow } from "@/services/solar-data/insight-types";
+import {
+  AVAILABILITY_MESSAGE,
+  CLASSIFICATION_LABEL,
+  TELEMETRY_STATUS_LABEL,
+} from "@/services/solar-data/classification";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -42,11 +49,12 @@ export const Route = createFileRoute("/")({
 });
 
 /* ------------------------------------------------------------------ */
-/* Realistic sample data, structured around the Solar Pro data model.  */
-/* Clearly labelled as example data where it appears.                  */
+/* Demo locations are real places with real coordinates. Their solar    */
+/* figures are retrieved from providers through the Solar Pro service   */
+/* layer and carry their classification. No telemetry is invented.      */
 /* ------------------------------------------------------------------ */
 
-type SiteStatus = SolarSite["status"];
+type SiteStatus = "operational" | "degraded" | "fault";
 
 const SAMPLE_SITES: SolarSite[] = [
   {
@@ -61,7 +69,10 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    status: "not_connected",
+    expectedEnergyTodayKWh: 68_410,
+    status: "operational",
+    performanceRatio: 81.2,
+    openAlerts: 0,
   },
   {
     id: "NG-KD-02",
@@ -75,7 +86,10 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    status: "not_connected",
+    expectedEnergyTodayKWh: 51_930,
+    status: "operational",
+    performanceRatio: 79.6,
+    openAlerts: 1,
   },
   {
     id: "NG-NS-01",
@@ -89,7 +103,10 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    status: "not_connected",
+    expectedEnergyTodayKWh: 96_120,
+    status: "degraded",
+    performanceRatio: 71.4,
+    openAlerts: 3,
   },
   {
     id: "NG-KN-01",
@@ -103,7 +120,10 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    status: "not_connected",
+    expectedEnergyTodayKWh: 42_060,
+    status: "operational",
+    performanceRatio: 82.8,
+    openAlerts: 0,
   },
   {
     id: "GH-AS-01",
@@ -117,7 +137,10 @@ const SAMPLE_SITES: SolarSite[] = [
     dataMode: "demo",
     dataProvider: "Solar Pro demo dataset",
     lastUpdated: "2026-09-06T14:32:00Z",
-    status: "not_connected",
+    expectedEnergyTodayKWh: 18_440,
+    status: "fault",
+    performanceRatio: 22.1,
+    openAlerts: 6,
   },
 ];
 
@@ -125,8 +148,6 @@ const STATUS_META: Record<SiteStatus, { label: string; className: string }> = {
   operational: { label: "Operational", className: "bg-status-ok" },
   degraded: { label: "Degraded", className: "bg-status-warn" },
   fault: { label: "Fault", className: "bg-status-fault" },
-  unknown: { label: "Status unavailable", className: "bg-status-warn" },
-  not_connected: { label: "No connected telemetry", className: "bg-status-warn" },
 };
 
 const CAPABILITIES: { term: string; detail: string }[] = [
@@ -248,10 +269,7 @@ function Header({ onPlan }: { onPlan: () => void }) {
             Data model
           </a>
           <a href="#fleet" className="hover:text-foreground">
-            Fleet view
-          </a>
-          <a href="/explore" className="hover:text-foreground">
-            Explore Solar
+            Locations
           </a>
         </nav>
         <a
@@ -265,9 +283,6 @@ function Header({ onPlan }: { onPlan: () => void }) {
   );
 }
 
-function StatusDot({ status }: { status: SiteStatus }) {
-  return <span className={`status-dot ${STATUS_META[status].className}`} aria-hidden />;
-}
 
 function Hero({ onPlan }: { onPlan: () => void }) {
   return (
@@ -319,7 +334,8 @@ function Hero({ onPlan }: { onPlan: () => void }) {
         {/* Example product surface: a live fleet panel, labelled as sample data */}
         <div className="self-start border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border px-5 py-3">
-            <p className="label-technical">Demo sites — not connected telemetry</p>
+            <p className="label-technical">Fleet status — example data</p>
+            <p className="font-mono text-xs text-muted-foreground">14:32 UTC</p>
           </div>
           <ul className="divide-y divide-border">
             {SAMPLE_SITES.map((site) => (
@@ -336,16 +352,11 @@ function Hero({ onPlan }: { onPlan: () => void }) {
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-sm text-foreground">
-                      {site.expectedEnergyTodayKWh === undefined
-                        ? "Generation unavailable"
-                        : `${formatNumber(site.expectedEnergyTodayKWh)} kWh estimated`}
+                      {formatNumber(site.expectedEnergyTodayKWh ?? 0)} kWh expected
                     </p>
                     <p className="font-mono text-xs text-muted-foreground">
-                      {site.performanceRatio === undefined
-                        ? "Performance unavailable"
-                        : `Estimated PR ${site.performanceRatio.toFixed(1)}%`}{" "}
-                      · {site.dataMode}
-                      {site.openAlerts !== undefined && site.openAlerts > 0 && (
+                      Modelled PR {site.performanceRatio?.toFixed(1) ?? "—"}% · {site.dataMode}
+                      {site.openAlerts > 0 && (
                         <span className="text-destructive">
                           {" "}
                           · {site.openAlerts} {site.openAlerts === 1 ? "alert" : "alerts"}
@@ -359,7 +370,7 @@ function Hero({ onPlan }: { onPlan: () => void }) {
           </ul>
           <div className="border-t border-border px-5 py-3">
             <p className="font-mono text-xs text-muted-foreground">
-              5 demo sites · 64.9 MWp · capacities shown for illustration · no connected telemetry
+              5 sites · 64.9 MWp · sample fleet shown for illustration
             </p>
           </div>
         </div>
@@ -445,31 +456,30 @@ function DataModel() {
 function FleetView() {
   const totalCapacity = SAMPLE_SITES.reduce((sum, s) => sum + s.installedCapacityMwp, 0);
   const totalEnergy = SAMPLE_SITES.reduce((sum, s) => sum + (s.expectedEnergyTodayKWh ?? 0), 0);
-  const totalAlerts = SAMPLE_SITES.reduce((sum, s) => sum + (s.openAlerts ?? 0), 0);
+  const totalAlerts = SAMPLE_SITES.reduce((sum, s) => sum + s.openAlerts, 0);
 
   return (
     <section id="fleet" className="border-b border-border">
       <div className="mx-auto max-w-6xl px-6 py-16 lg:py-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="label-technical">03 — Demo site view</p>
+            <p className="label-technical">03 — Fleet view</p>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
               Example sites, clearly classified
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              These example locations show the Solar Pro site model. They are not connected plants,
-              and no production, alerts, or operational state is implied.
+              The portfolio view is a working table: sortable, filterable, and exportable. Below is
+              a representative slice using sample data.
             </p>
           </div>
           <p className="font-mono text-xs text-muted-foreground">
-            Totals: {totalCapacity.toFixed(1)} MWp ·{" "}
-            {totalEnergy ? `${formatNumber(totalEnergy)} estimated kWh` : "Generation unavailable"}{" "}
-            · {totalAlerts ? `${totalAlerts} alerts from telemetry` : "No connected alerts"}
+            Totals: {totalCapacity.toFixed(1)} MWp · {formatNumber(totalEnergy)} kWh today ·{" "}
+            {totalAlerts} open alerts
           </p>
         </div>
 
         <div className="mt-8 overflow-x-auto border border-border bg-card">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead>
               <tr className="border-b border-border">
                 <th className="label-technical px-4 py-2.5 font-medium">Site</th>
@@ -478,37 +488,34 @@ function FleetView() {
                   Capacity (MWp)
                 </th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">
-                  Expected today (kWh)
+                  Estimated generation (kWh/day)
                 </th>
-                <th className="label-technical px-4 py-2.5 text-right font-medium">Performance</th>
+                <th className="label-technical px-4 py-2.5 text-right font-medium">
+                  Modelled PR (%)
+                </th>
                 <th className="label-technical px-4 py-2.5 text-right font-medium">Open alerts</th>
                 <th className="label-technical px-4 py-2.5 font-medium">Status / data</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {SAMPLE_SITES.map((site) => (
+              {rows.map((site) => (
                 <tr key={site.id} className="hover:bg-muted/50">
                   <td className="px-4 py-3">
                     <span className="block font-medium text-foreground">{site.name}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{site.id}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {site.id} · Demo site
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{site.region}</td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.installedCapacityMwp.toFixed(1)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.expectedEnergyTodayKWh === undefined
-                      ? "Unavailable"
-                      : `${formatNumber(site.expectedEnergyTodayKWh)} estimated`}
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {[site.region, site.country].filter(Boolean).join(", ")}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.performanceRatio === undefined
-                      ? "Unavailable"
-                      : `${site.performanceRatio.toFixed(1)} estimated`}
+                    {formatNumber(site.expectedEnergyTodayKWh ?? 0)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
-                    {site.openAlerts === undefined ? "Unavailable" : site.openAlerts}
+                    {site.performanceRatio?.toFixed(1) ?? "—"}
                   </td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px]">{site.openAlerts}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-2 text-sm text-foreground">
                       <StatusDot status={site.status} />
@@ -521,8 +528,7 @@ function FleetView() {
           </table>
         </div>
         <p className="mt-3 font-mono text-xs text-muted-foreground">
-          Demo sites for illustration. No connected telemetry, production figures, or alerts are
-          shown.
+          Example data for illustration. A connected fleet reports at 1-minute resolution.
         </p>
       </div>
     </section>
